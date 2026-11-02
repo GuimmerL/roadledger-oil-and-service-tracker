@@ -1,0 +1,18 @@
+services:
+  android-build:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    working_dir: /workspace
+    environment:
+      GRADLE_USER_HOME: /gradle-cache
+      ANDROID_HOME: /opt/android-sdk
+      ANDROID_SDK_ROOT: /opt/android-sdk
+    volumes:
+      - gradle-cache:/gradle-cache
+      - ../releases/apk:/workspace/release-output
+    # No database, receipts, source secrets, or runtime vehicle data in this image.
+    # Build artifacts remain reproducible and signing stays outside the container.
+
+volumes:
+  gradle-cache:

@@ -1,0 +1,1088 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 4,
+    "identityHash": "a4fbdb57f76ace7af4b7252d53b50ef5",
+    "entities": [
+      {
+        "tableName": "vehicles",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `nickname` TEXT, `modelYear` INTEGER, `make` TEXT NOT NULL, `model` TEXT NOT NULL, `trim` TEXT, `engine` TEXT, `engineCode` TEXT, `fuelType` TEXT, `transmission` TEXT, `vin` TEXT, `licensePlate` TEXT, `odometerUnit` TEXT NOT NULL, `acquiredOn` TEXT, `photoUri` TEXT, `notes` TEXT, `defaultSpecificationId` TEXT, `archivedAtUtc` INTEGER, `createdAtUtc` INTEGER NOT NULL, `updatedAtUtc` INTEGER NOT NULL, `startingDailyUsageKmPerDay` REAL, `oilIntervalMode` TEXT NOT NULL DEFAULT 'NORMAL', `vehicleType` TEXT NOT NULL DEFAULT 'OTHER', PRIMARY KEY(`id`), FOREIGN KEY(`defaultSpecificationId`) REFERENCES `vehicle_specifications`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nickname",
+            "columnName": "nickname",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "modelYear",
+            "columnName": "modelYear",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "make",
+            "columnName": "make",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "model",
+            "columnName": "model",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "trim",
+            "columnName": "trim",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "engine",
+            "columnName": "engine",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "engineCode",
+            "columnName": "engineCode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fuelType",
+            "columnName": "fuelType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "transmission",
+            "columnName": "transmission",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "vin",
+            "columnName": "vin",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "licensePlate",
+            "columnName": "licensePlate",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "odometerUnit",
+            "columnName": "odometerUnit",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "acquiredOn",
+            "columnName": "acquiredOn",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "photoUri",
+            "columnName": "photoUri",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "defaultSpecificationId",
+            "columnName": "defaultSpecificationId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "archivedAtUtc",
+            "columnName": "archivedAtUtc",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "createdAtUtc",
+            "columnName": "createdAtUtc",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtUtc",
+            "columnName": "updatedAtUtc",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startingDailyUsageKmPerDay",
+            "columnName": "startingDailyUsageKmPerDay",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "oilIntervalMode",
+            "columnName": "oilIntervalMode",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'NORMAL'"
+          },
+          {
+            "fieldPath": "vehicleType",
+            "columnName": "vehicleType",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'OTHER'"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_vehicles_vin",
+            "unique": false,
+            "columnNames": [
+              "vin"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_vehicles_vin` ON `${TABLE_NAME}` (`vin`)"
+          },
+          {
+            "name": "index_vehicles_archivedAtUtc",
+            "unique": false,
+            "columnNames": [
+              "archivedAtUtc"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_vehicles_archivedAtUtc` ON `${TABLE_NAME}` (`archivedAtUtc`)"
+          },
+          {
+            "name": "index_vehicles_defaultSpecificationId",
+            "unique": false,
+            "columnNames": [
+              "defaultSpecificationId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_vehicles_defaultSpecificationId` ON `${TABLE_NAME}` (`defaultSpecificationId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "vehicle_specifications",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "defaultSpecificationId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "vehicle_specifications",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `make` TEXT NOT NULL, `model` TEXT NOT NULL, `modelYear` INTEGER, `trim` TEXT, `engine` TEXT, `engineCode` TEXT, `viscosityGrade` TEXT, `manufacturerApproval` TEXT, `capacityWithFilterMl` INTEGER, `capacityWithoutFilterMl` INTEGER, `distanceInterval` INTEGER, `distanceUnit` TEXT, `timeIntervalMonths` INTEGER, `severeDistanceInterval` INTEGER, `severeTimeIntervalMonths` INTEGER, `oilFilterPartNumber` TEXT, `serviceNotes` TEXT, `verificationStatus` TEXT NOT NULL, `verifiedOn` TEXT, `createdAtUtc` INTEGER NOT NULL, `updatedAtUtc` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "make",
+            "columnName": "make",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "model",
+            "columnName": "model",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modelYear",
+            "columnName": "modelYear",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "trim",
+            "columnName": "trim",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "engine",
+            "columnName": "engine",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "engineCode",
+            "columnName": "engineCode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "viscosityGrade",
+            "columnName": "viscosityGrade",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "manufacturerApproval",
+            "columnName": "manufacturerApproval",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "capacityWithFilterMl",
+            "columnName": "capacityWithFilterMl",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "capacityWithoutFilterMl",
+            "columnName": "capacityWithoutFilterMl",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "distanceInterval",
+            "columnName": "distanceInterval",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "distanceUnit",
+            "columnName": "distanceUnit",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "timeIntervalMonths",
+            "columnName": "timeIntervalMonths",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "severeDistanceInterval",
+            "columnName": "severeDistanceInterval",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "severeTimeIntervalMonths",
+            "columnName": "severeTimeIntervalMonths",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "oilFilterPartNumber",
+            "columnName": "oilFilterPartNumber",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "serviceNotes",
+            "columnName": "serviceNotes",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "verificationStatus",
+            "columnName": "verificationStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "verifiedOn",
+            "columnName": "verifiedOn",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAtUtc",
+            "columnName": "createdAtUtc",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtUtc",
+            "columnName": "updatedAtUtc",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_vehicle_specifications_make_model_modelYear_engineCode",
+            "unique": false,
+            "columnNames": [
+              "make",
+              "model",
+              "modelYear",
+              "engineCode"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_vehicle_specifications_make_model_modelYear_engineCode` ON `${TABLE_NAME}` (`make`, `model`, `modelYear`, `engineCode`)"
+          }
+        ]
+      },
+      {
+        "tableName": "specification_sources",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `specificationId` TEXT NOT NULL, `sourceName` TEXT NOT NULL, `sourceUrl` TEXT, `verifiedOn` TEXT, `verificationStatus` TEXT NOT NULL, `notes` TEXT, PRIMARY KEY(`id`), FOREIGN KEY(`specificationId`) REFERENCES `vehicle_specifications`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "specificationId",
+            "columnName": "specificationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceName",
+            "columnName": "sourceName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceUrl",
+            "columnName": "sourceUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "verifiedOn",
+            "columnName": "verifiedOn",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "verificationStatus",
+            "columnName": "verificationStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_specification_sources_specificationId",
+            "unique": false,
+            "columnNames": [
+              "specificationId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_specification_sources_specificationId` ON `${TABLE_NAME}` (`specificationId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "vehicle_specifications",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "specificationId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "vehicle_specification_overrides",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `vehicleId` TEXT NOT NULL, `viscosityGrade` TEXT, `manufacturerApproval` TEXT, `capacityWithFilterMl` INTEGER, `distanceInterval` INTEGER, `distanceUnit` TEXT, `timeIntervalMonths` INTEGER, `oilFilterPartNumber` TEXT, `sourceDescription` TEXT, `updatedAtUtc` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`vehicleId`) REFERENCES `vehicles`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "vehicleId",
+            "columnName": "vehicleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "viscosityGrade",
+            "columnName": "viscosityGrade",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "manufacturerApproval",
+            "columnName": "manufacturerApproval",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "capacityWithFilterMl",
+            "columnName": "capacityWithFilterMl",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "distanceInterval",
+            "columnName": "distanceInterval",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "distanceUnit",
+            "columnName": "distanceUnit",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "timeIntervalMonths",
+            "columnName": "timeIntervalMonths",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "oilFilterPartNumber",
+            "columnName": "oilFilterPartNumber",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceDescription",
+            "columnName": "sourceDescription",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "updatedAtUtc",
+            "columnName": "updatedAtUtc",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_vehicle_specification_overrides_vehicleId",
+            "unique": true,
+            "columnNames": [
+              "vehicleId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_vehicle_specification_overrides_vehicleId` ON `${TABLE_NAME}` (`vehicleId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "vehicles",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "vehicleId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "odometer_readings",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `vehicleId` TEXT NOT NULL, `value` INTEGER NOT NULL, `unit` TEXT NOT NULL, `recordedAtUtc` INTEGER NOT NULL, `sourceType` TEXT NOT NULL, `sourceRecordId` TEXT, `notes` TEXT, `createdAtUtc` INTEGER NOT NULL, `updatedAtUtc` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`vehicleId`) REFERENCES `vehicles`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "vehicleId",
+            "columnName": "vehicleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unit",
+            "columnName": "unit",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recordedAtUtc",
+            "columnName": "recordedAtUtc",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceType",
+            "columnName": "sourceType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceRecordId",
+            "columnName": "sourceRecordId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAtUtc",
+            "columnName": "createdAtUtc",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtUtc",
+            "columnName": "updatedAtUtc",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_odometer_readings_vehicleId_recordedAtUtc",
+            "unique": false,
+            "columnNames": [
+              "vehicleId",
+              "recordedAtUtc"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_odometer_readings_vehicleId_recordedAtUtc` ON `${TABLE_NAME}` (`vehicleId`, `recordedAtUtc`)"
+          },
+          {
+            "name": "index_odometer_readings_sourceRecordId",
+            "unique": false,
+            "columnNames": [
+              "sourceRecordId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_odometer_readings_sourceRecordId` ON `${TABLE_NAME}` (`sourceRecordId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "vehicles",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "vehicleId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "oil_changes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `vehicleId` TEXT NOT NULL, `serviceDate` TEXT NOT NULL, `odometerValue` INTEGER NOT NULL, `odometerUnit` TEXT NOT NULL, `odometerReadingId` TEXT, `oilBrand` TEXT, `oilProduct` TEXT, `viscosityGrade` TEXT, `manufacturerApproval` TEXT, `quantityUsedMl` INTEGER, `filterBrand` TEXT, `filterPartNumber` TEXT, `filterReplaced` INTEGER NOT NULL, `serviceProvider` TEXT, `serviceType` TEXT NOT NULL, `totalCostMinor` INTEGER, `partsCostMinor` INTEGER, `laborCostMinor` INTEGER, `currencyCode` TEXT NOT NULL, `distanceIntervalOverride` INTEGER, `timeIntervalMonthsOverride` INTEGER, `notes` TEXT, `createdAtUtc` INTEGER NOT NULL, `updatedAtUtc` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`vehicleId`) REFERENCES `vehicles`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "vehicleId",
+            "columnName": "vehicleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "serviceDate",
+            "columnName": "serviceDate",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "odometerValue",
+            "columnName": "odometerValue",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "odometerUnit",
+            "columnName": "odometerUnit",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "odometerReadingId",
+            "columnName": "odometerReadingId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "oilBrand",
+            "columnName": "oilBrand",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "oilProduct",
+            "columnName": "oilProduct",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "viscosityGrade",
+            "columnName": "viscosityGrade",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "manufacturerApproval",
+            "columnName": "manufacturerApproval",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "quantityUsedMl",
+            "columnName": "quantityUsedMl",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "filterBrand",
+            "columnName": "filterBrand",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "filterPartNumber",
+            "columnName": "filterPartNumber",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "filterReplaced",
+            "columnName": "filterReplaced",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "serviceProvider",
+            "columnName": "serviceProvider",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "serviceType",
+            "columnName": "serviceType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalCostMinor",
+            "columnName": "totalCostMinor",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "partsCostMinor",
+            "columnName": "partsCostMinor",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "laborCostMinor",
+            "columnName": "laborCostMinor",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "currencyCode",
+            "columnName": "currencyCode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "distanceIntervalOverride",
+            "columnName": "distanceIntervalOverride",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "timeIntervalMonthsOverride",
+            "columnName": "timeIntervalMonthsOverride",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAtUtc",
+            "columnName": "createdAtUtc",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtUtc",
+            "columnName": "updatedAtUtc",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_oil_changes_vehicleId_serviceDate",
+            "unique": false,
+            "columnNames": [
+              "vehicleId",
+              "serviceDate"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_oil_changes_vehicleId_serviceDate` ON `${TABLE_NAME}` (`vehicleId`, `serviceDate`)"
+          },
+          {
+            "name": "index_oil_changes_odometerReadingId",
+            "unique": false,
+            "columnNames": [
+              "odometerReadingId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_oil_changes_odometerReadingId` ON `${TABLE_NAME}` (`odometerReadingId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "vehicles",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "vehicleId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "fuel_fill_ups",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `vehicleId` TEXT NOT NULL, `filledAtUtc` INTEGER NOT NULL, `odometerValue` INTEGER NOT NULL, `odometerUnit` TEXT NOT NULL, `odometerReadingId` TEXT, `volumeMillilitres` INTEGER NOT NULL, `totalCostMinor` INTEGER, `currencyCode` TEXT NOT NULL, `fuelType` TEXT, `isFullTank` INTEGER NOT NULL, `stationName` TEXT, `notes` TEXT, `createdAtUtc` INTEGER NOT NULL, `updatedAtUtc` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`vehicleId`) REFERENCES `vehicles`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "vehicleId",
+            "columnName": "vehicleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "filledAtUtc",
+            "columnName": "filledAtUtc",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "odometerValue",
+            "columnName": "odometerValue",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "odometerUnit",
+            "columnName": "odometerUnit",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "odometerReadingId",
+            "columnName": "odometerReadingId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "volumeMillilitres",
+            "columnName": "volumeMillilitres",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalCostMinor",
+            "columnName": "totalCostMinor",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "currencyCode",
+            "columnName": "currencyCode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fuelType",
+            "columnName": "fuelType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isFullTank",
+            "columnName": "isFullTank",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stationName",
+            "columnName": "stationName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAtUtc",
+            "columnName": "createdAtUtc",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtUtc",
+            "columnName": "updatedAtUtc",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_fuel_fill_ups_vehicleId_filledAtUtc",
+            "unique": false,
+            "columnNames": [
+              "vehicleId",
+              "filledAtUtc"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_fuel_fill_ups_vehicleId_filledAtUtc` ON `${TABLE_NAME}` (`vehicleId`, `filledAtUtc`)"
+          },
+          {
+            "name": "index_fuel_fill_ups_odometerReadingId",
+            "unique": false,
+            "columnNames": [
+              "odometerReadingId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_fuel_fill_ups_odometerReadingId` ON `${TABLE_NAME}` (`odometerReadingId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "vehicles",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "vehicleId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "receipt_attachments",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `vehicleId` TEXT NOT NULL, `oilChangeId` TEXT, `fuelFillUpId` TEXT, `internalRelativePath` TEXT NOT NULL, `originalFileName` TEXT NOT NULL, `mimeType` TEXT NOT NULL, `sizeBytes` INTEGER NOT NULL, `sha256` TEXT NOT NULL, `addedAtUtc` INTEGER NOT NULL, `notes` TEXT, PRIMARY KEY(`id`), FOREIGN KEY(`vehicleId`) REFERENCES `vehicles`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`oilChangeId`) REFERENCES `oil_changes`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`fuelFillUpId`) REFERENCES `fuel_fill_ups`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "vehicleId",
+            "columnName": "vehicleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "oilChangeId",
+            "columnName": "oilChangeId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fuelFillUpId",
+            "columnName": "fuelFillUpId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "internalRelativePath",
+            "columnName": "internalRelativePath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalFileName",
+            "columnName": "originalFileName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mimeType",
+            "columnName": "mimeType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sizeBytes",
+            "columnName": "sizeBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sha256",
+            "columnName": "sha256",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "addedAtUtc",
+            "columnName": "addedAtUtc",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_receipt_attachments_vehicleId",
+            "unique": false,
+            "columnNames": [
+              "vehicleId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_receipt_attachments_vehicleId` ON `${TABLE_NAME}` (`vehicleId`)"
+          },
+          {
+            "name": "index_receipt_attachments_oilChangeId",
+            "unique": false,
+            "columnNames": [
+              "oilChangeId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_receipt_attachments_oilChangeId` ON `${TABLE_NAME}` (`oilChangeId`)"
+          },
+          {
+            "name": "index_receipt_attachments_fuelFillUpId",
+            "unique": false,
+            "columnNames": [
+              "fuelFillUpId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_receipt_attachments_fuelFillUpId` ON `${TABLE_NAME}` (`fuelFillUpId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "vehicles",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "vehicleId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "oil_changes",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "oilChangeId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "fuel_fill_ups",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "fuelFillUpId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "app_settings",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `value` TEXT NOT NULL, `updatedAtUtc` INTEGER NOT NULL, PRIMARY KEY(`key`))",
+        "fields": [
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtUtc",
+            "columnName": "updatedAtUtc",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "key"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a4fbdb57f76ace7af4b7252d53b50ef5')"
+    ]
+  }
+}
