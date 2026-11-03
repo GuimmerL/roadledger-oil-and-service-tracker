@@ -1,5 +1,9 @@
 # RoadLedger - Oil and service tracker
 
+[![Buy Me a Coffee](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://buymeacoffee.com/ekqindmb4)
+
+If RoadLedger is useful to you, [support its development](https://buymeacoffee.com/ekqindmb4).
+
 Local-first Android app for a personal garage, oil-change schedules, fuel economy, service receipts, vehicle documents, and user-controlled backup/restore. Built with Kotlin, Jetpack Compose, Room/SQLite, and Android's Storage Access Framework. It does not require a server, cloud account, paid API, or network connection after installation.
 
 ## Implemented
