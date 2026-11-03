@@ -1,5 +1,9 @@
 # RoadLedger - Oil and service tracker
 
+<p align="center">
+  <img src="docs/images/roadledger-app-icon.png" alt="RoadLedger Android app icon" width="112">
+</p>
+
 <a href="https://buymeacoffee.com/ekqindmb"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" width="140"></a>
 
 If RoadLedger is useful to you, [support its development](https://buymeacoffee.com/ekqindmb).
