@@ -1,6 +1,6 @@
 # RoadLedger - Oil and service tracker
 
-[![Buy Me a Coffee](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://buymeacoffee.com/ekqindmb4)
+<a href="https://buymeacoffee.com/ekqindmb4"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" width="140"></a>
 
 If RoadLedger is useful to you, [support its development](https://buymeacoffee.com/ekqindmb4).
 
