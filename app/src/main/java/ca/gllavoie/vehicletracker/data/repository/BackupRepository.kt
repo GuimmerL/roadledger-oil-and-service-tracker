@@ -2,12 +2,10 @@ package ca.gllavoie.vehicletracker.data.repository
 
 import android.content.Context
 import android.database.Cursor
-import androidx.room.withTransaction
 import androidx.sqlite.db.SupportSQLiteDatabase
 import ca.gllavoie.vehicletracker.BuildConfig
 import ca.gllavoie.vehicletracker.data.local.VehicleDatabase
 import ca.gllavoie.vehicletracker.domain.document.VehicleDocumentType
-import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
@@ -16,7 +14,7 @@ import java.io.OutputStream
 import java.security.MessageDigest
 import java.util.UUID
 import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
+import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -27,6 +25,8 @@ private const val BACKUP_FORMAT = "vehicle-tracker-backup"
 private const val BACKUP_VERSION = 1
 private const val MAX_BACKUP_BYTES = 200L * 1024L * 1024L
 private const val MAX_DATABASE_JSON_BYTES = 50L * 1024L * 1024L
+private const val MAX_ENTRIES = 10_000
+private const val MAX_RECEIPT_BYTES = 10 * 1024 * 1024L
 
 /** Validated metadata shown before the user explicitly confirms a replace restore. */
 data class BackupPreview(
@@ -44,43 +44,48 @@ class BackupRepository(
     private val maxBackupBytes: Long = MAX_BACKUP_BYTES
 ) {
     suspend fun createBackup(output: OutputStream): BackupPreview = withContext(Dispatchers.IO) {
+        var createdAt = 0L
         try {
             val snapshot = exportSnapshot()
             val jsonBytes = snapshot.json.toString().toByteArray(Charsets.UTF_8)
             require(jsonBytes.size <= MAX_DATABASE_JSON_BYTES) { "Database export exceeds the backup size limit." }
+            val attachments = readSnapshotAttachments(snapshot.json)
+            // Hash attachments once so the manifest can be written first; attachment bytes
+            // are streamed from disk and never held in memory.
             val checksums = JSONObject()
             checksums.put("database.json", checksumEntry(jsonBytes))
-            val attachments = readSnapshotAttachments(snapshot.json)
-            val attachmentPayloads = LinkedHashMap<String, ByteArray>()
+            var totalArchivePayloadBytes = jsonBytes.size.toLong()
             for (attachment in attachments) {
                 val file = resolveReceipt(attachment.relativePath)
                 require(file.isFile) { "A receipt file is missing: ${attachment.originalName}" }
                 require(file.length() == attachment.sizeBytes) { "A receipt size does not match its database metadata: ${attachment.originalName}" }
-                val bytes = file.readBytes()
-                val hash = bytes.sha256()
+                val hash = file.sha256()
                 require(hash == attachment.sha256) { "A receipt checksum does not match its database metadata: ${attachment.originalName}" }
-                val entryName = "attachments/${attachment.relativePath}"
-                attachmentPayloads[entryName] = bytes
-                checksums.put(entryName, checksumEntry(bytes))
+                checksums.put("attachments/${attachment.relativePath}", JSONObject().put("sizeBytes", file.length()).put("sha256", hash))
+                totalArchivePayloadBytes = Math.addExact(totalArchivePayloadBytes, file.length())
             }
-            val totalArchivePayloadBytes = attachmentPayloads.values.sumOf { it.size.toLong() } + jsonBytes.size
             require(totalArchivePayloadBytes <= maxBackupBytes) { "Backup exceeds the maximum supported size." }
+            createdAt = System.currentTimeMillis()
             val manifest = JSONObject()
                 .put("format", BACKUP_FORMAT)
                 .put("backupVersion", BACKUP_VERSION)
                 .put("databaseVersion", snapshot.schemaVersion)
                 .put("appVersion", BuildConfig.VERSION_NAME)
-                .put("createdAtUtc", System.currentTimeMillis())
+                .put("createdAtUtc", createdAt)
                 .put("recordCounts", JSONObject(snapshot.recordCounts))
                 .put("attachmentCount", attachments.size)
                 .put("checksums", checksums)
             ZipOutputStream(output).use { zip ->
                 putZipEntry(zip, "manifest.json", manifest.toString().toByteArray(Charsets.UTF_8))
                 putZipEntry(zip, "database.json", jsonBytes)
-                attachmentPayloads.forEach { (name, bytes) -> putZipEntry(zip, name, bytes) }
+                for (attachment in attachments) {
+                    val file = resolveReceipt(attachment.relativePath)
+                    zip.putNextEntry(ZipEntry("attachments/${attachment.relativePath}"))
+                    file.inputStream().use { input -> input.copyTo(zip) }
+                    zip.closeEntry()
+                }
                 zip.finish()
             }
-            val createdAt = manifest.getLong("createdAtUtc")
             recordHistory("backup.last_success_utc", createdAt.toString())
             recordHistory("backup.last_error", "")
             BackupPreview(createdAt, BuildConfig.VERSION_NAME, snapshot.recordCounts, attachments.size)
@@ -91,46 +96,55 @@ class BackupRepository(
     }
 
     suspend fun validateBackup(input: InputStream): BackupPreview = withContext(Dispatchers.IO) {
-        parseAndValidate(input).preview
+        val validated = parseAndValidate(input)
+        try {
+            validated.preview
+        } finally {
+            validated.archiveFile.delete()
+        }
     }
 
     /** Destructive replacement is deliberately impossible without an explicit UI confirmation. */
     suspend fun restoreBackup(input: InputStream, confirmReplace: Boolean): BackupPreview = withContext(Dispatchers.IO) {
         require(confirmReplace) { "Restore replaces all existing garage data. Confirm replacement before continuing." }
         val validated = parseAndValidate(input)
+        val archiveFile = validated.archiveFile
         val liveDb = database.openHelper.writableDatabase
         val oldReceiptPaths = readLiveReceiptPaths(liveDb)
         val stagedFiles = mutableListOf<File>()
         val replacementFiles = LinkedHashMap<String, String>()
         var restoreCommitted = false
         try {
-            for ((entryName, bytes) in validated.attachmentPayloads) {
-                val oldRelative = entryName.removePrefix("attachments/")
-                val extension = when (mimeForRelativePath(oldRelative)) {
-                    "application/pdf" -> "pdf"
-                    "image/jpeg" -> "jpg"
-                    "image/png" -> "png"
-                    "image/webp" -> "webp"
-                    "image/gif" -> "gif"
-                    "image/heic" -> "heic"
-                    "image/heif" -> "heif"
-                    "image/avif" -> "avif"
-                    else -> throw IllegalArgumentException("Unsupported receipt attachment in backup.")
+            ZipFile(archiveFile).use { zip ->
+                for (entryName in validated.attachmentEntryNames) {
+                    val oldRelative = entryName.removePrefix("attachments/")
+                    val extension = when (mimeForRelativePath(oldRelative)) {
+                        "application/pdf" -> "pdf"
+                        "image/jpeg" -> "jpg"
+                        "image/png" -> "png"
+                        "image/webp" -> "webp"
+                        "image/gif" -> "gif"
+                        "image/heic" -> "heic"
+                        "image/heif" -> "heif"
+                        "image/avif" -> "avif"
+                        else -> throw IllegalArgumentException("Unsupported receipt attachment in backup.")
+                    }
+                    val internalName = "${UUID.randomUUID()}.$extension"
+                    val stage = File(receiptStorage, ".restore-${UUID.randomUUID()}.part")
+                    val destination = File(receiptStorage, internalName)
+                    require(receiptStorage.mkdirs() || receiptStorage.isDirectory) { "Receipt storage is not available." }
+                    try {
+                        val entry = zip.getEntry(entryName) ?: throw IllegalArgumentException("A receipt file is missing from the backup.")
+                        zip.getInputStream(entry).use { source -> stage.outputStream().use { target -> source.copyTo(target) } }
+                        if (!stage.renameTo(destination)) throw IOException("Could not stage a restored receipt file.")
+                        stagedFiles += destination
+                    } catch (failure: Exception) {
+                        stage.delete()
+                        destination.delete()
+                        throw failure
+                    }
+                    replacementFiles[oldRelative] = "receipts/$internalName"
                 }
-                val internalName = "${UUID.randomUUID()}.$extension"
-                val stage = File(receiptStorage, ".restore-${UUID.randomUUID()}.part")
-                val destination = File(receiptStorage, internalName)
-                require(receiptStorage.mkdirs() || receiptStorage.isDirectory) { "Receipt storage is not available." }
-                try {
-                    stage.writeBytes(bytes)
-                    if (!stage.renameTo(destination)) throw IOException("Could not stage a restored receipt file.")
-                    stagedFiles += destination
-                } catch (failure: Exception) {
-                    stage.delete()
-                    destination.delete()
-                    throw failure
-                }
-                replacementFiles[oldRelative] = "receipts/$internalName"
             }
             rewriteReceiptPaths(validated.databaseJson, replacementFiles)
             liveDb.beginTransaction()
@@ -150,8 +164,10 @@ class BackupRepository(
             validated.preview
         } catch (error: Exception) {
             if (!restoreCommitted) stagedFiles.forEach { it.delete() }
-            runCatching { recordHistory("backup.last_error", "Restore failed: ${error.message.orEmpty()}".take(240)) }
+            runCatching { recordHistory("backup.last_error", "Restore failed: ${error.message.orEmpty()}") }
             throw error
+        } finally {
+            archiveFile.delete()
         }
     }
 
@@ -169,7 +185,8 @@ class BackupRepository(
     private data class Validated(
         val preview: BackupPreview,
         val databaseJson: JSONObject,
-        val attachmentPayloads: Map<String, ByteArray>
+        val attachmentEntryNames: List<String>,
+        val archiveFile: File
     )
     private data class TableSchema(val columns: List<String>, val types: List<String>, val primaryKeys: List<Int>)
 
@@ -212,82 +229,125 @@ class BackupRepository(
         else -> JSONObject.NULL
     }
 
+    /**
+     * Validates the archive against its manifest and leaves the bytes in a temp file so a
+     * restore can stream attachments without loading them into memory.
+     */
     private fun parseAndValidate(input: InputStream): Validated {
-        val entries = readZipEntries(input)
-        val manifestBytes = requireNotNull(entries["manifest.json"]) { "Backup manifest is missing." }
-        val databaseBytes = requireNotNull(entries["database.json"]) { "Backup database export is missing." }
-        val manifest = runCatching { JSONObject(manifestBytes.toString(Charsets.UTF_8)) }
-            .getOrElse { throw IllegalArgumentException("Backup manifest is malformed.") }
-        require(manifest.optString("format") == BACKUP_FORMAT) { "This is not a vehicle tracker backup." }
-        require(manifest.optInt("backupVersion") == BACKUP_VERSION) { "Unsupported backup archive version." }
-        val sql = database.openHelper.writableDatabase
-        val currentVersion = readSchemaVersion(sql)
-        val archiveDatabaseVersion = manifest.optInt("databaseVersion", -1)
-        require(archiveDatabaseVersion in 1..currentVersion) {
-            "Backup database schema is incompatible with this app version."
+        require(receiptStorage.exists() || receiptStorage.mkdirs()) { "Receipt storage is not available." }
+        val archiveFile = File.createTempFile("vehicle-tracker-backup-", ".zip", receiptStorage)
+        try {
+            input.use { source -> archiveFile.outputStream().use { target -> source.copyTo(target) } }
+            ZipFile(archiveFile).use { zip ->
+                val entryNames = zip.entries().asSequence().map { it.name }.toList()
+                require(entryNames.size <= MAX_ENTRIES) { "Backup contains too many entries." }
+                require(entryNames.size == entryNames.distinct().size) { "Backup contains duplicate archive entries." }
+                require(entryNames.none { it.isEmpty() || it.startsWith('/') || it.contains('\\') || it.split('/').any { part -> part == ".." || part == "." } }) {
+                    "Backup contains an unsafe file path."
+                }
+                val manifestBytes = zip.entryBytes("manifest.json")
+                val databaseBytes = zip.entryBytes("database.json")
+                val manifest = runCatching { JSONObject(manifestBytes.toString(Charsets.UTF_8)) }
+                    .getOrElse { throw IllegalArgumentException("Backup manifest is malformed.") }
+                require(manifest.optString("format") == BACKUP_FORMAT) { "This is not a vehicle tracker backup." }
+                require(manifest.optInt("backupVersion") == BACKUP_VERSION) { "Unsupported backup archive version." }
+                val sql = database.openHelper.writableDatabase
+                val currentVersion = readSchemaVersion(sql)
+                val archiveDatabaseVersion = manifest.optInt("databaseVersion", -1)
+                require(archiveDatabaseVersion in 1..currentVersion) {
+                    "Backup database schema is incompatible with this app version."
+                }
+                require(databaseBytes.size.toLong() <= MAX_DATABASE_JSON_BYTES) { "Database export exceeds the backup size limit." }
+                val checksumObject = manifest.optJSONObject("checksums") ?: throw IllegalArgumentException("Backup checksum list is missing.")
+                val expectedNames = mutableSetOf<String>()
+                val checksumKeys = checksumObject.keys()
+                while (checksumKeys.hasNext()) expectedNames += checksumKeys.next()
+                require(expectedNames == entryNames.toSet() - "manifest.json") { "Backup contains missing or unlisted files." }
+                for (name in expectedNames) {
+                    validateArchivePath(name)
+                    require(name == "database.json" || name.startsWith("attachments/receipts/")) { "Backup contains an unexpected file." }
+                    val checksum = checksumObject.getJSONObject(name)
+                    if (name == "database.json") {
+                        require(checksum.getLong("sizeBytes") == databaseBytes.size.toLong()) { "Backup file size check failed for $name." }
+                        require(checksum.getString("sha256") == databaseBytes.sha256()) { "Backup checksum verification failed for $name." }
+                    } else {
+                        zip.streamEntry(name) { stream ->
+                            val (size, hash) = stream.hashAndSize()
+                            require(checksum.getLong("sizeBytes") == size) { "Backup file size check failed for $name." }
+                            require(checksum.getString("sha256") == hash) { "Backup checksum verification failed for $name." }
+                        }
+                    }
+                }
+                val databaseJson = runCatching { JSONObject(databaseBytes.toString(Charsets.UTF_8)) }
+                    .getOrElse { throw IllegalArgumentException("Backup database export is malformed.") }
+                require(databaseJson.optInt("schemaVersion", -1) == archiveDatabaseVersion) { "Backup database version does not match its manifest." }
+                validateDatabaseRows(sql, databaseJson, archiveDatabaseVersion)
+                if (archiveDatabaseVersion != currentVersion) migrateBackupDatabaseJson(databaseJson, archiveDatabaseVersion, currentVersion)
+                require(databaseJson.optInt("schemaVersion") == currentVersion) { "Backup database version is incompatible." }
+                val schemas = validateDatabaseRows(sql, databaseJson, currentVersion)
+                val counts = schemas.mapValues { (_, info) -> info.second }
+                val attachmentEntryNames = validateAttachments(databaseJson, expectedNames, checksumObject)
+                val manifestCounts = manifest.optJSONObject("recordCounts") ?: JSONObject()
+                require(counts.all { (table, count) -> manifestCounts.optInt(table, -1) == count }) { "Backup record counts do not match the database export." }
+                require(manifest.optInt("attachmentCount", -1) == attachmentEntryNames.size) { "Backup attachment count does not match its records." }
+                val preview = BackupPreview(
+                    createdAtUtc = manifest.optLong("createdAtUtc", -1L).also { require(it >= 0L) { "Backup creation timestamp is invalid." } },
+                    appVersion = manifest.optString("appVersion", "unknown"),
+                    recordCounts = counts,
+                    attachmentCount = attachmentEntryNames.size
+                )
+                return Validated(preview, databaseJson, attachmentEntryNames, archiveFile)
+            }
+        } catch (error: Exception) {
+            archiveFile.delete()
+            throw error
         }
-        require(databaseBytes.size.toLong() <= MAX_DATABASE_JSON_BYTES) { "Database export exceeds the backup size limit." }
-        val checksumObject = manifest.optJSONObject("checksums") ?: throw IllegalArgumentException("Backup checksum list is missing.")
-        val expectedNames = mutableSetOf<String>()
-        val checksumKeys = checksumObject.keys()
-        while (checksumKeys.hasNext()) expectedNames += checksumKeys.next()
-        require(expectedNames == entries.keys - "manifest.json") { "Backup contains missing or unlisted files." }
-        for (name in expectedNames) {
-            validateArchivePath(name)
-            val bytes = requireNotNull(entries[name])
-            val checksum = checksumObject.getJSONObject(name)
-            require(checksum.getLong("sizeBytes") == bytes.size.toLong()) { "Backup file size check failed for $name." }
-            require(checksum.getString("sha256") == bytes.sha256()) { "Backup checksum verification failed for $name." }
-        }
-        val databaseJson = runCatching { JSONObject(databaseBytes.toString(Charsets.UTF_8)) }
-            .getOrElse { throw IllegalArgumentException("Backup database export is malformed.") }
-        require(databaseJson.optInt("schemaVersion", -1) == archiveDatabaseVersion) { "Backup database version does not match its manifest." }
-        validateDatabaseRows(sql, databaseJson, archiveDatabaseVersion)
-        if (archiveDatabaseVersion != currentVersion) migrateBackupDatabaseJson(databaseJson, archiveDatabaseVersion, currentVersion)
-        require(databaseJson.optInt("schemaVersion") == currentVersion) { "Backup database version is incompatible." }
-        val schemas = validateDatabaseRows(sql, databaseJson, currentVersion)
-        val counts = schemas.mapValues { (_, info) -> info.second }
-        val attachmentPayloads = validateAttachments(databaseJson, entries)
-        val manifestCounts = manifest.optJSONObject("recordCounts") ?: JSONObject()
-        require(counts.all { (table, count) -> manifestCounts.optInt(table, -1) == count }) { "Backup record counts do not match the database export." }
-        require(manifest.optInt("attachmentCount", -1) == attachmentPayloads.size) { "Backup attachment count does not match its records." }
-        val preview = BackupPreview(
-            createdAtUtc = manifest.optLong("createdAtUtc", -1L).also { require(it >= 0L) { "Backup creation timestamp is invalid." } },
-            appVersion = manifest.optString("appVersion", "unknown"),
-            recordCounts = counts,
-            attachmentCount = attachmentPayloads.size
-        )
-        return Validated(preview, databaseJson, attachmentPayloads)
     }
 
-    private fun readZipEntries(input: InputStream): Map<String, ByteArray> {
-        val entries = linkedMapOf<String, ByteArray>()
-        var totalBytes = 0L
-        ZipInputStream(input).use { zip ->
+    private fun ZipFile.entryBytes(name: String): ByteArray {
+        val entry = getEntry(name) ?: throw IllegalArgumentException("Backup entry $name is missing.")
+        val output = ByteArrayOutputStream()
+        getInputStream(entry).use { stream ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
             while (true) {
-                val entry = zip.nextEntry ?: break
-                require(!entry.isDirectory) { "Backup may not contain directory entries." }
-                validateArchivePath(entry.name)
-                require(entry.name !in entries) { "Backup contains duplicate archive entries." }
-                require(entry.name == "manifest.json" || entry.name == "database.json" || entry.name.startsWith("attachments/receipts/")) {
-                    "Backup contains an unexpected file."
-                }
-                val maxEntry = if (entry.name == "database.json") MAX_DATABASE_JSON_BYTES else maxBackupBytes
-                val output = ByteArrayOutputStream()
-                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                while (true) {
-                    val count = zip.read(buffer)
-                    if (count < 0) break
-                    totalBytes = Math.addExact(totalBytes, count.toLong())
-                    require(totalBytes <= maxBackupBytes) { "Backup exceeds the maximum supported size." }
-                    require(output.size().toLong() + count <= maxEntry) { "Backup entry is too large." }
-                    output.write(buffer, 0, count)
-                }
-                entries[entry.name] = output.toByteArray()
-                zip.closeEntry()
+                val count = stream.read(buffer)
+                if (count < 0) break
+                require(output.size().toLong() + count <= MAX_DATABASE_JSON_BYTES) { "Backup entry is too large." }
+                output.write(buffer, 0, count)
             }
         }
-        return entries
+        return output.toByteArray()
+    }
+
+    private fun ZipFile.streamEntry(name: String, block: (InputStream) -> Unit) {
+        val entry = getEntry(name) ?: throw IllegalArgumentException("Backup entry $name is missing.")
+        getInputStream(entry).use(block)
+    }
+
+    private fun InputStream.hashAndSize(): Pair<Long, String> {
+        val digest = MessageDigest.getInstance("SHA-256")
+        var size = 0L
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        while (true) {
+            val count = read(buffer)
+            if (count < 0) break
+            size = Math.addExact(size, count.toLong())
+            digest.update(buffer, 0, count)
+        }
+        return size to digest.digest().toHexString()
+    }
+
+    private fun File.sha256(): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        inputStream().use { stream ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val count = stream.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        return digest.digest().toHexString()
     }
 
     private fun validateDatabaseRows(sql: SupportSQLiteDatabase, json: JSONObject, archiveVersion: Int): Map<String, Pair<TableSchema, Int>> {
@@ -345,6 +405,12 @@ class BackupRepository(
             require(index >= 0) { "Required backup column $table.$column is missing." }
             return rows.getValue(table).mapNotNull { it[index]?.toString() }.toSet()
         }
+        fun idMap(table: String, valueColumn: String): Map<String, String?> {
+            val idIndex = schemas.getValue(table).columns.indexOf("id")
+            val valueIndex = schemas.getValue(table).columns.indexOf(valueColumn)
+            require(idIndex >= 0 && valueIndex >= 0) { "Required backup columns are missing from $table." }
+            return rows.getValue(table).mapNotNull { row -> row[idIndex]?.toString()?.let { it to row[valueIndex]?.toString() } }.toMap()
+        }
         fun check(table: String, column: String, parent: String, nullable: Boolean = true) {
             val index = schemas.getValue(table).columns.indexOf(column)
             val references = idSet(parent, "id")
@@ -368,9 +434,19 @@ class BackupRepository(
         val oilColumn = schemas.getValue("receipt_attachments").columns.indexOf("oilChangeId")
         val fuelColumn = schemas.getValue("receipt_attachments").columns.indexOf("fuelFillUpId")
         val documentTypeColumn = schemas.getValue("receipt_attachments").columns.indexOf("documentType")
+        val oilVehicleById = idMap("oil_changes", "vehicleId")
+        val fuelVehicleById = idMap("fuel_fill_ups", "vehicleId")
         rows.getValue("receipt_attachments").forEach { row ->
             val hasOil = row[oilColumn] != null
             val hasFuel = row[fuelColumn] != null
+            val linkedVehicleId = when {
+                hasOil -> oilVehicleById[row[oilColumn]?.toString()]
+                hasFuel -> fuelVehicleById[row[fuelColumn]?.toString()]
+                else -> null
+            }
+            require(linkedVehicleId == null || linkedVehicleId == row[schemas.getValue("receipt_attachments").columns.indexOf("vehicleId")]?.toString()) {
+                "A receipt belongs to a different vehicle than its linked service or fuel record."
+            }
             if (documentTypeColumn < 0) {
                 require(hasOil xor hasFuel) { "Each legacy receipt must belong to exactly one service or fuel record." }
             } else {
@@ -383,7 +459,11 @@ class BackupRepository(
         }
     }
 
-    private fun validateAttachments(databaseJson: JSONObject, entries: Map<String, ByteArray>): Map<String, ByteArray> {
+    private fun validateAttachments(
+        databaseJson: JSONObject,
+        expectedNames: Set<String>,
+        checksums: JSONObject
+    ): List<String> {
         val tables = databaseJson.getJSONObject("tables")
         val attachmentTable = tables.getJSONObject("receipt_attachments")
         val columns = (0 until attachmentTable.getJSONArray("columns").length()).map { attachmentTable.getJSONArray("columns").getString(it) }
@@ -391,7 +471,6 @@ class BackupRepository(
         val sizeIndex = columns.indexOf("sizeBytes")
         val hashIndex = columns.indexOf("sha256")
         require(pathIndex >= 0 && sizeIndex >= 0 && hashIndex >= 0) { "Receipt metadata columns are missing." }
-        val payloads = linkedMapOf<String, ByteArray>()
         val expected = mutableSetOf<String>()
         val rows = attachmentTable.getJSONArray("rows")
         for (index in 0 until rows.length()) {
@@ -400,14 +479,13 @@ class BackupRepository(
             validateRelativeReceiptPath(relative)
             val entryName = "attachments/$relative"
             expected += entryName
-            val bytes = requireNotNull(entries[entryName]) { "A receipt file is missing from the backup." }
-            require(bytes.size <= 10 * 1024 * 1024) { "A receipt exceeds the supported 10 MB size limit." }
-            require(bytes.size.toLong() == row.getLong(sizeIndex)) { "A receipt length does not match its metadata." }
-            require(bytes.sha256() == row.getString(hashIndex)) { "A receipt checksum does not match its metadata." }
-            payloads[entryName] = bytes
+            require(row.getLong(sizeIndex) <= MAX_RECEIPT_BYTES) { "A receipt exceeds the supported 10 MB size limit." }
+            val checksum = checksums.getJSONObject(entryName)
+            require(row.getLong(sizeIndex) == checksum.getLong("sizeBytes")) { "A receipt length does not match its metadata." }
+            require(row.getString(hashIndex) == checksum.getString("sha256")) { "A receipt checksum does not match its metadata." }
         }
-        require(entries.keys.filter { it.startsWith("attachments/") }.toSet() == expected) { "Backup contains unlinked receipt files." }
-        return payloads
+        require(expectedNames.filter { it.startsWith("attachments/") }.toSet() == expected) { "Backup contains unlinked receipt files." }
+        return expected.sorted()
     }
 
     private fun insertRestoredRows(sql: SupportSQLiteDatabase, json: JSONObject) {
@@ -585,7 +663,9 @@ class BackupRepository(
 
     private fun checksumEntry(bytes: ByteArray) = JSONObject().put("sizeBytes", bytes.size).put("sha256", bytes.sha256())
 
-    private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256").digest(this).joinToString("") { "%02x".format(it) }
+    private fun ByteArray.sha256(): String = MessageDigest.getInstance("SHA-256").digest(this).toHexString()
+
+    private fun ByteArray.toHexString(): String = joinToString("") { "%02x".format(it) }
 
     private fun putZipEntry(zip: ZipOutputStream, name: String, bytes: ByteArray) {
         zip.putNextEntry(ZipEntry(name))

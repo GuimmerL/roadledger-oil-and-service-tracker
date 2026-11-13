@@ -61,7 +61,7 @@ fun OilReminderSettingsScreen(
             error = null
         } else {
             enabled = false
-            error = "Notifications permission was not granted. Enable it in Android Settings to receive oil reminders."
+            error = context.getString(R.string.notifications_permission_denied)
         }
     }
 
@@ -70,20 +70,20 @@ fun OilReminderSettingsScreen(
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             showPermissionRationale = true
         } else if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-            error = "Notifications are disabled for RoadLedger in Android Settings."
+            error = context.getString(R.string.notifications_disabled)
         } else {
             OilReminderNotifications.enable(context)
             enabled = true
         }
     }
 
+    val enableOilChangeNotificationsCd = stringResource(R.string.enable_oil_change_notifications_cd)
     Column(
         modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("Settings", style = MaterialTheme.typography.headlineMedium)
         Text(stringResource(R.string.app_name_full), style = MaterialTheme.typography.bodySmall)
-        Text("Measurement system", style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.measurement_system_title), style = MaterialTheme.typography.titleLarge)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             MeasurementSystem.entries.forEach { system ->
                 FilterChip(
@@ -92,12 +92,12 @@ fun OilReminderSettingsScreen(
                         measurementSystem = system
                         MeasurementSystemPreferences.set(context, system)
                     },
-                    label = { Text(system.label) }
+                    label = { Text(stringResource(system.labelRes)) }
                 )
             }
         }
-        Text("Recommended oil-change distance intervals are converted to this unit system, and new vehicles default to it. Existing odometer and service records keep their saved units.", style = MaterialTheme.typography.bodySmall)
-        Text("Appearance", style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.measurement_system_hint), style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.appearance_title), style = MaterialTheme.typography.titleLarge)
         ThemeMode.entries.forEach { mode ->
             Row(
                 modifier = Modifier.fillMaxWidth().clickable { onThemeModeChanged(mode) },
@@ -105,31 +105,31 @@ fun OilReminderSettingsScreen(
             ) {
                 RadioButton(selected = themeMode == mode, onClick = { onThemeModeChanged(mode) })
                 Column(modifier = Modifier.padding(start = 8.dp)) {
-                    Text(mode.label, style = MaterialTheme.typography.titleMedium)
-                    Text(mode.description, style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(mode.labelRes), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(mode.descriptionRes), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
-        Text("Button color", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.button_color_title), style = MaterialTheme.typography.titleMedium)
         ButtonColorTheme.entries.forEach { colorTheme ->
             Row(
                 modifier = Modifier.fillMaxWidth().clickable { onButtonColorThemeChanged(colorTheme) },
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 RadioButton(selected = buttonColorTheme == colorTheme, onClick = { onButtonColorThemeChanged(colorTheme) })
-                Text(colorTheme.label, modifier = Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(colorTheme.labelRes), modifier = Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodyLarge)
             }
         }
-        Text("Phone colors use Android's wallpaper palette when available. Blue, teal, violet, green, amber, and rose change the app's primary button color.", style = MaterialTheme.typography.bodySmall)
-        Text("Oil change reminders", style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.button_color_hint), style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.oil_reminder_channel_name), style = MaterialTheme.typography.titleLarge)
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Daily notification check", style = MaterialTheme.typography.titleMedium)
-                Text("Notify when a saved oil-change schedule is due soon, due, or overdue.", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.daily_notification_check), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.daily_notification_check_hint), style = MaterialTheme.typography.bodySmall)
             }
             Switch(
                 checked = enabled,
@@ -141,25 +141,25 @@ fun OilReminderSettingsScreen(
                         error = null
                     }
                 },
-                modifier = Modifier.semantics { contentDescription = "Enable oil change notifications" }
+                modifier = Modifier.semantics { contentDescription = enableOilChangeNotificationsCd }
             )
         }
-        Text("Reminders use the stored interval and current odometer. The current due-soon thresholds are 1,000 miles/kilometres or 30 days. Intervals must be entered or user-verified, and Android notification permission must remain enabled.", style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.reminders_hint), style = MaterialTheme.typography.bodySmall)
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
     }
 
     if (showPermissionRationale) {
         AlertDialog(
             onDismissRequest = { showPermissionRationale = false },
-            title = { Text("Allow oil change notifications?") },
-            text = { Text("RoadLedger checks saved oil-change schedules once per day and posts a notification when service is approaching or due.") },
+            title = { Text(stringResource(R.string.allow_oil_change_notifications_title)) },
+            text = { Text(stringResource(R.string.permission_rationale)) },
             confirmButton = {
                 TextButton(onClick = {
                     showPermissionRationale = false
                     permissionRequest.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }) { Text("Continue") }
+                }) { Text(stringResource(R.string.continue_label)) }
             },
-            dismissButton = { TextButton(onClick = { showPermissionRationale = false }) { Text("Not now") } }
+            dismissButton = { TextButton(onClick = { showPermissionRationale = false }) { Text(stringResource(R.string.not_now)) } }
         )
     }
 }

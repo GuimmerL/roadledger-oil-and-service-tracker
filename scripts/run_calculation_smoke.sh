@@ -1,14 +1,14 @@
 #!/usr/bin/env sh
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-: "${JAVA_HOME:?Set JAVA_HOME to a JDK 17 installation}"
+JAVA_HOME=${JAVA_HOME:-/opt/data/jdk/jdk-17.0.13+11}
 PATH="$JAVA_HOME/bin:$PATH"
 export JAVA_HOME PATH
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/vehicle-tracker-calc.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT INT TERM
 python3 "$ROOT/scripts/check_fuel_calculations.py"
 python3 "$ROOT/scripts/check_oil_schedule.py"
-CACHE="${GRADLE_USER_HOME:-$HOME/.gradle}/caches/modules-2/files-2.1"
+CACHE=/opt/data/.gradle/caches/modules-2/files-2.1
 KOTLIN_LIB="$CACHE/org.jetbrains.kotlin"
 COMPILER=$(find "$KOTLIN_LIB/kotlin-compiler-embeddable/2.1.21" -name '*.jar' -print -quit)
 STDLIB=$(find "$KOTLIN_LIB/kotlin-stdlib/2.1.21" -name '*.jar' -print -quit)

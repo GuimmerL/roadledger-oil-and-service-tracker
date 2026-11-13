@@ -1,12 +1,14 @@
 package ca.gllavoie.vehicletracker.preferences
 
 import android.content.Context
+import androidx.annotation.StringRes
+import ca.gllavoie.vehicletracker.R
 import kotlin.math.floor
 
 /** Preferred display system; stored vehicle and service readings keep their original units. */
-enum class MeasurementSystem(val distanceUnit: String, val label: String) {
-    METRIC("KM", "Metric (km)"),
-    IMPERIAL("MILE", "Imperial (mi)")
+enum class MeasurementSystem(val distanceUnit: String, @StringRes val labelRes: Int) {
+    METRIC("KM", R.string.measurement_system_metric),
+    IMPERIAL("MILE", R.string.measurement_system_imperial)
 }
 
 object MeasurementSystemPreferences {

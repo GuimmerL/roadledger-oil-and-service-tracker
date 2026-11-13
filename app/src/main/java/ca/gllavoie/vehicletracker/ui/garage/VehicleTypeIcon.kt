@@ -17,9 +17,19 @@ import androidx.compose.ui.unit.dp
 import ca.gllavoie.vehicletracker.domain.vehicle.VehicleType
 
 @Composable
-fun VehicleTypeIcon(type: VehicleType, modifier: Modifier = Modifier, iconSize: Dp = 56.dp) {
+fun VehicleTypeIcon(
+    type: VehicleType,
+    modifier: Modifier = Modifier,
+    iconSize: Dp = 56.dp,
+    description: String? = null
+) {
     val color = MaterialTheme.colorScheme.primary
-    Canvas(modifier.size(iconSize).semantics { contentDescription = "${type.label} vehicle" }) {
+    val describedModifier = if (description == null) {
+        modifier
+    } else {
+        modifier.semantics { contentDescription = description }
+    }
+    Canvas(describedModifier.size(iconSize)) {
         val unit = minOf(size.width, size.height)
         val stroke = Stroke(width = unit * 0.045f, cap = StrokeCap.Round, join = StrokeJoin.Round)
         fun point(x: Float, y: Float) = Offset(size.width * x, size.height * y)

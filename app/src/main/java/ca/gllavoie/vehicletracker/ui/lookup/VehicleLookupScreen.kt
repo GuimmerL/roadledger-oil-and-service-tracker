@@ -31,11 +31,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import ca.gllavoie.vehicletracker.R
 import ca.gllavoie.vehicletracker.data.local.SpecificationSourceEntity
 import ca.gllavoie.vehicletracker.data.local.VehicleSpecificationEntity
 import ca.gllavoie.vehicletracker.data.repository.VehicleCatalogOptions
@@ -47,8 +49,9 @@ import java.text.NumberFormat
 @Composable
 fun VehicleLookupScreen(repository: VehicleSpecificationRepository) {
     val context = LocalContext.current
-    val entries by repository.observeSpecificationsForDataset(VehicleCatalogSeeder.CATALOG_ID_PREFIX)
-        .collectAsStateWithLifecycle(emptyList())
+    val entries by remember(repository) {
+        repository.observeSpecificationsForDataset(VehicleCatalogSeeder.CATALOG_ID_PREFIX)
+    }.collectAsStateWithLifecycle(emptyList())
     var selectedYear by rememberSaveable { mutableStateOf<Int?>(null) }
     var selectedMake by rememberSaveable { mutableStateOf("") }
     var selectedModel by rememberSaveable { mutableStateOf("") }
@@ -60,7 +63,7 @@ fun VehicleLookupScreen(repository: VehicleSpecificationRepository) {
 
     LaunchedEffect(repository) {
         runCatching { VehicleCatalogSeeder(context.applicationContext, repository).seedIfMissing() }
-            .onFailure { loadError = it.message ?: "Vehicle catalog could not be loaded." }
+            .onFailure { loadError = it.message ?: context.getString(R.string.vehicle_catalog_load_error) }
         seedAttempted = true
     }
 
@@ -83,10 +86,10 @@ fun VehicleLookupScreen(repository: VehicleSpecificationRepository) {
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Look up a vehicle without adding it to your garage. Select year, make, model, and engine/configuration to inspect the catalog entry.", style = MaterialTheme.typography.bodyLarge)
+        Text(stringResource(R.string.lookup_hint), style = MaterialTheme.typography.bodyLarge)
         loadError?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive }) }
         LookupDropdownField(
-            label = "Year",
+            label = stringResource(R.string.year_label),
             value = selectedYear?.toString().orEmpty(),
             options = yearOptions,
             optionLabel = { it.toString() },
@@ -100,9 +103,9 @@ fun VehicleLookupScreen(repository: VehicleSpecificationRepository) {
                 showDetails = false
             }
         )
-        if (selectedYear != null && makeOptions.isEmpty()) Text("No makes are listed for this year.", style = MaterialTheme.typography.bodySmall)
+        if (selectedYear != null && makeOptions.isEmpty()) Text(stringResource(R.string.no_makes_for_year), style = MaterialTheme.typography.bodySmall)
         LookupDropdownField(
-            label = "Make",
+            label = stringResource(R.string.make_label),
             value = selectedMake,
             options = makeOptions,
             optionLabel = { it },
@@ -115,9 +118,9 @@ fun VehicleLookupScreen(repository: VehicleSpecificationRepository) {
                 showDetails = false
             }
         )
-        if (selectedMake.isNotBlank() && modelOptions.isEmpty()) Text("No models are listed for this make and year.", style = MaterialTheme.typography.bodySmall)
+        if (selectedMake.isNotBlank() && modelOptions.isEmpty()) Text(stringResource(R.string.no_models_for_make_year), style = MaterialTheme.typography.bodySmall)
         LookupDropdownField(
-            label = "Model",
+            label = stringResource(R.string.model_label),
             value = selectedModel,
             options = modelOptions,
             optionLabel = { it },
@@ -129,12 +132,12 @@ fun VehicleLookupScreen(repository: VehicleSpecificationRepository) {
                 showDetails = false
             }
         )
-        if (selectedModel.isNotBlank() && engineOptions.isEmpty()) Text("No engine/configuration entries are listed for this model.", style = MaterialTheme.typography.bodySmall)
+        if (selectedModel.isNotBlank() && engineOptions.isEmpty()) Text(stringResource(R.string.no_engine_configs_for_model), style = MaterialTheme.typography.bodySmall)
         LookupDropdownField(
-            label = "Engine / configuration",
+            label = stringResource(R.string.engine_configuration_label),
             value = selectedEntry?.let { engineOptionLabel(it.copy(engine = selectedEngine.ifBlank { it.engine.orEmpty() })) }.orEmpty(),
             options = engineOptions,
-            optionLabel = ::engineOptionLabel,
+            optionLabel = { engineOptionLabel(it) },
             enabled = selectedYear != null && selectedMake.isNotBlank() && selectedModel.isNotBlank() && engineOptions.isNotEmpty(),
             onSelect = {
                 selectedId = it.id
@@ -144,13 +147,13 @@ fun VehicleLookupScreen(repository: VehicleSpecificationRepository) {
         )
         when {
             !seedAttempted && entries.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))
-            entries.isEmpty() -> Text("No vehicle catalog entries are available.", style = MaterialTheme.typography.bodyMedium)
+            entries.isEmpty() -> Text(stringResource(R.string.no_catalog_entries), style = MaterialTheme.typography.bodyMedium)
             selectedEntry != null -> {
-                Text("Normal oil interval: ${normalIntervalLabel(selectedEntry)}", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.normal_oil_interval_format, normalIntervalLabel(selectedEntry)), style = MaterialTheme.typography.bodyMedium)
                 Text(statusLabel(selectedEntry.verificationStatus), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                TextButton(onClick = { showDetails = true }) { Text("Review data and source") }
+                TextButton(onClick = { showDetails = true }) { Text(stringResource(R.string.review_data_and_source)) }
             }
-            else -> Text("Choose a catalog engine/configuration to review oil data and verification status. No garage record is created.", style = MaterialTheme.typography.bodyMedium)
+            else -> Text(stringResource(R.string.lookup_choose_engine_hint), style = MaterialTheme.typography.bodyMedium)
         }
     }
 
@@ -168,7 +171,7 @@ private fun <T> LookupDropdownField(
     label: String,
     value: String,
     options: List<T>,
-    optionLabel: (T) -> String,
+    optionLabel: @Composable (T) -> String,
     enabled: Boolean,
     onSelect: (T) -> Unit
 ) {
@@ -180,7 +183,7 @@ private fun <T> LookupDropdownField(
             readOnly = true,
             enabled = enabled,
             label = { Text(label) },
-            placeholder = { Text("Select $label") },
+            placeholder = { Text(stringResource(R.string.select_label_format, label)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = enabled).fillMaxWidth()
         )
@@ -195,18 +198,27 @@ private fun <T> LookupDropdownField(
     }
 }
 
-private fun engineOptionLabel(entry: VehicleSpecificationEntity): String = listOfNotNull(
-    entry.engine?.takeIf(String::isNotBlank),
-    VehicleCatalogOptions.marketRegion(entry),
-    entry.viscosityGrade?.let { "Oil $it" },
-    normalIntervalLabel(entry).takeIf { it != "Not specified" }?.let { "Normal $it" },
-    statusLabel(entry.verificationStatus)
-).joinToString(" · ").ifBlank { "Engine/configuration not specified" }
+@Composable
+private fun engineOptionLabel(entry: VehicleSpecificationEntity): String {
+    val notSpecified = stringResource(R.string.not_specified)
+    val normal = normalIntervalLabel(entry)
+    return listOfNotNull(
+        entry.engine?.takeIf(String::isNotBlank),
+        VehicleCatalogOptions.marketRegion(entry),
+        entry.viscosityGrade?.let { stringResource(R.string.oil_format, it) },
+        normal.takeIf { it != notSpecified }?.let { stringResource(R.string.normal_format, it) },
+        statusLabel(entry.verificationStatus)
+    ).joinToString(" · ").ifBlank { stringResource(R.string.engine_configuration_not_specified) }
+}
 
-private fun normalIntervalLabel(entry: VehicleSpecificationEntity): String = listOfNotNull(
-    entry.distanceInterval?.let { "${NumberFormat.getIntegerInstance().format(it)} ${entry.distanceUnit.orEmpty().lowercase()}" },
-    entry.timeIntervalMonths?.let { "$it months" }
-).joinToString(" · ").ifBlank { "Not specified" }
+@Composable
+private fun normalIntervalLabel(entry: VehicleSpecificationEntity): String {
+    val distanceText = entry.distanceInterval?.let {
+        stringResource(R.string.two_part_format, NumberFormat.getIntegerInstance().format(it), entry.distanceUnit.orEmpty().lowercase())
+    }
+    val monthsText = entry.timeIntervalMonths?.let { stringResource(R.string.months_format, it) }
+    return listOfNotNull(distanceText, monthsText).joinToString(" · ").ifBlank { stringResource(R.string.not_specified) }
+}
 
 @Composable
 private fun VehicleLookupDetailsDialog(
@@ -222,65 +234,69 @@ private fun VehicleLookupDetailsDialog(
     val year = VehicleCatalogOptions.yearRange(entry)?.let { range ->
         if (range.first == range.last) range.first.toString() else "${range.first}–${range.last}"
     } ?: entry.modelYear?.toString().orEmpty()
-    val normal = listOfNotNull(
-        entry.distanceInterval?.let { "${NumberFormat.getIntegerInstance().format(it)} ${entry.distanceUnit.orEmpty().lowercase()}" },
-        entry.timeIntervalMonths?.let { "$it months" }
-    ).joinToString(" · ").ifBlank { noteValue(entry, "Raw normal-service interval") ?: "Not specified" }
-    val severe = listOfNotNull(
-        entry.severeDistanceInterval?.let { "${NumberFormat.getIntegerInstance().format(it)} ${entry.distanceUnit.orEmpty().lowercase()}" },
-        entry.severeTimeIntervalMonths?.let { "$it months" }
-    ).joinToString(" · ").ifBlank { noteValue(entry, "Raw severe-service interval") ?: "Not specified" }
+    val normalDistance = entry.distanceInterval?.let {
+        stringResource(R.string.two_part_format, NumberFormat.getIntegerInstance().format(it), entry.distanceUnit.orEmpty().lowercase())
+    }
+    val normalMonths = entry.timeIntervalMonths?.let { stringResource(R.string.months_format, it) }
+    val normal = listOfNotNull(normalDistance, normalMonths)
+        .joinToString(" · ").ifBlank { noteValue(entry, "Raw normal-service interval") ?: stringResource(R.string.not_specified) }
+    val severeDistance = entry.severeDistanceInterval?.let {
+        stringResource(R.string.two_part_format, NumberFormat.getIntegerInstance().format(it), entry.distanceUnit.orEmpty().lowercase())
+    }
+    val severeMonths = entry.severeTimeIntervalMonths?.let { stringResource(R.string.months_format, it) }
+    val severe = listOfNotNull(severeDistance, severeMonths)
+        .joinToString(" · ").ifBlank { noteValue(entry, "Raw severe-service interval") ?: stringResource(R.string.not_specified) }
     val verificationMessage = when (entry.verificationStatus) {
-        VehicleCatalogSeeder.OFFICIAL_INTERVAL_RESEARCHED -> "An OEM interval source was found; the user must review and confirm it before scheduling can use it. Other catalog fields may still be unverified."
-        VehicleCatalogSeeder.AI_GENERATED_UNVERIFIED -> "AI-generated and not manufacturer-verified. Check the exact year, market and engine against the owner's manual. This lookup does not verify the data."
-        "USER_VERIFIED" -> "Marked verified by the user. Always check that the source applies to this exact vehicle."
-        else -> "Catalog data is not verified. Check the owner's manual before relying on it."
+        VehicleCatalogSeeder.OFFICIAL_INTERVAL_RESEARCHED -> stringResource(R.string.lookup_oem_source_message)
+        VehicleCatalogSeeder.AI_GENERATED_UNVERIFIED -> stringResource(R.string.lookup_ai_message)
+        "USER_VERIFIED" -> stringResource(R.string.lookup_user_verified_message)
+        else -> stringResource(R.string.lookup_unverified_message)
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("$year ${entry.make} ${entry.model}") },
+        title = { Text(stringResource(R.string.lookup_title_format, year, entry.make, entry.model)) },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(7.dp)
             ) {
                 Text(verificationMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                Text("${statusLabel(entry.verificationStatus)} · ${VehicleCatalogOptions.marketRegion(entry) ?: "Market not specified"}", style = MaterialTheme.typography.labelLarge)
-                detail("Engine / configuration", entry.engine ?: raw.optString("engine_trim"))
-                detail("Engine code", entry.engineCode ?: raw.optString("oem_engine_code"))
-                detail("Engine displacement", raw.optString("engine_displacement_l").takeIf(String::isNotBlank)?.let { "$it L" })
-                detail("Cylinders", raw.optString("cylinder_config"))
-                detail("Induction", raw.optString("induction_type"))
-                detail("Fuel type", raw.optString("fuel_type"))
+                Text(stringResource(R.string.lookup_status_market_format, statusLabel(entry.verificationStatus), VehicleCatalogOptions.marketRegion(entry) ?: stringResource(R.string.market_not_specified)), style = MaterialTheme.typography.labelLarge)
+                detail(stringResource(R.string.engine_configuration_label), entry.engine ?: raw.optString("engine_trim"))
+                detail(stringResource(R.string.engine_code_label), entry.engineCode ?: raw.optString("oem_engine_code"))
+                detail(stringResource(R.string.engine_displacement_label), raw.optString("engine_displacement_l").takeIf(String::isNotBlank)?.let { stringResource(R.string.litre_format, it) })
+                detail(stringResource(R.string.cylinders_label), raw.optString("cylinder_config"))
+                detail(stringResource(R.string.induction_label), raw.optString("induction_type"))
+                detail(stringResource(R.string.fuel_type_label), raw.optString("fuel_type"))
                 HorizontalDivider()
-                Text("Oil service", style = MaterialTheme.typography.titleSmall)
-                detail("Recommended oil", raw.optString("oil_recommendation").takeIf(String::isNotBlank) ?: entry.viscosityGrade)
-                detail("Viscosity", entry.viscosityGrade)
-                detail("API service category", raw.optString("api_service_category"))
-                detail("Oil type required", raw.optString("oil_type_required"))
-                detail("OEM approval", entry.manufacturerApproval ?: raw.optString("oem_approval_spec"))
-                detail("Filter", entry.oilFilterPartNumber ?: raw.optString("filter_description"))
-                detail("Oil capacity", capacityText(raw))
-                detail("Normal-service interval", normal)
-                detail("Severe-service interval", severe)
-                detail("Oil-life monitor", raw.optString("uses_oil_life_monitor"))
-                detail("Oil reset procedure", noteValue(entry, "Oil reset procedure") ?: raw.optString("oil_reset_procedure"))
-                detail("Drain plug torque", raw.optString("drain_plug_torque_ft_lbs").takeIf(String::isNotBlank)?.let { "$it ft-lb" })
-                detail("Drain plug socket", raw.optString("drain_plug_socket_mm").takeIf(String::isNotBlank)?.let { "$it mm" })
-                detail("Filter wrench size", raw.optString("filter_wrench_size"))
+                Text(stringResource(R.string.oil_service), style = MaterialTheme.typography.titleSmall)
+                detail(stringResource(R.string.recommended_oil_label), raw.optString("oil_recommendation").takeIf(String::isNotBlank) ?: entry.viscosityGrade)
+                detail(stringResource(R.string.viscosity_label), entry.viscosityGrade)
+                detail(stringResource(R.string.api_service_category_label), raw.optString("api_service_category"))
+                detail(stringResource(R.string.oil_type_required_label), raw.optString("oil_type_required"))
+                detail(stringResource(R.string.oem_approval_label), entry.manufacturerApproval ?: raw.optString("oem_approval_spec"))
+                detail(stringResource(R.string.filter_label), entry.oilFilterPartNumber ?: raw.optString("filter_description"))
+                detail(stringResource(R.string.oil_capacity_label), capacityText(raw))
+                detail(stringResource(R.string.normal_service_interval_label), normal)
+                detail(stringResource(R.string.severe_service_interval_label), severe)
+                detail(stringResource(R.string.oil_life_monitor_label), raw.optString("uses_oil_life_monitor"))
+                detail(stringResource(R.string.oil_reset_procedure_label), noteValue(entry, "Oil reset procedure") ?: raw.optString("oil_reset_procedure"))
+                detail(stringResource(R.string.drain_plug_torque_label), raw.optString("drain_plug_torque_ft_lbs").takeIf(String::isNotBlank)?.let { stringResource(R.string.ft_lb_format, it) })
+                detail(stringResource(R.string.drain_plug_socket_label), raw.optString("drain_plug_socket_mm").takeIf(String::isNotBlank)?.let { stringResource(R.string.mm_format, it) })
+                detail(stringResource(R.string.filter_wrench_size_label), raw.optString("filter_wrench_size"))
                 if (source != null) {
                     HorizontalDivider()
-                    Text("Source / provenance", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.source_provenance), style = MaterialTheme.typography.titleSmall)
                     Text(source.sourceName, style = MaterialTheme.typography.bodyMedium)
                     source.sourceUrl?.takeIf(String::isNotBlank)?.let { url ->
-                        TextButton(onClick = { runCatching { uriHandler.openUri(url) } }) { Text("Open source") }
+                        TextButton(onClick = { runCatching { uriHandler.openUri(url) } }) { Text(stringResource(R.string.open_source)) }
                     }
                 }
-                Text("Searching does not add this vehicle to My Garage.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.lookup_no_garage_record), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } }
     )
 }
 
@@ -288,7 +304,7 @@ private fun VehicleLookupDetailsDialog(
 private fun detail(label: String, value: String?) {
     value?.takeIf(String::isNotBlank)?.let {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("$label:", style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.detail_label_format, label), style = MaterialTheme.typography.labelMedium)
             Text(it, style = MaterialTheme.typography.bodySmall)
         }
     }
@@ -305,14 +321,17 @@ private fun noteValue(entry: VehicleSpecificationEntity, label: String): String?
     ?.trim()
     ?.takeIf(String::isNotBlank)
 
-private fun capacityText(row: JSONObject): String? = listOfNotNull(
-    row.optString("oil_capacity_liters").takeIf(String::isNotBlank)?.let { "$it L" },
-    row.optString("oil_capacity_quarts").takeIf(String::isNotBlank)?.let { "$it qt" }
-).joinToString(" / ").takeIf(String::isNotBlank)
+@Composable
+private fun capacityText(row: JSONObject): String? {
+    val litres = row.optString("oil_capacity_liters").takeIf(String::isNotBlank)?.let { stringResource(R.string.litre_format, it) }
+    val quarts = row.optString("oil_capacity_quarts").takeIf(String::isNotBlank)?.let { stringResource(R.string.quart_format, it) }
+    return listOfNotNull(litres, quarts).joinToString(" / ").takeIf(String::isNotBlank)
+}
 
+@Composable
 private fun statusLabel(status: String): String = when (status) {
-    VehicleCatalogSeeder.AI_GENERATED_UNVERIFIED -> "AI-generated · unverified"
-    VehicleCatalogSeeder.OFFICIAL_INTERVAL_RESEARCHED -> "Interval source found · confirm"
-    "USER_VERIFIED" -> "User verified"
-    else -> "Unverified"
+    VehicleCatalogSeeder.AI_GENERATED_UNVERIFIED -> stringResource(R.string.status_ai_unverified)
+    VehicleCatalogSeeder.OFFICIAL_INTERVAL_RESEARCHED -> stringResource(R.string.status_interval_source_found)
+    "USER_VERIFIED" -> stringResource(R.string.user_verified)
+    else -> stringResource(R.string.unverified)
 }

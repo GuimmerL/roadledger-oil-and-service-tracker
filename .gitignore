@@ -42,5 +42,12 @@ local-data/
 .DS_Store
 
 # Generated versioned release binaries (keep manifests/docs in source control)
+/releases/v*/RoadLedger_v*_debug.apk
+/releases/v*/RoadLedger_v*_Source_Code.zip
 /releases/v*/Vehicle_Tracker_v*_debug.apk
 /releases/v*/Vehicle_Tracker_v*_Source_Code.zip
+/releases/**/*.apk
+/releases/**/*.zip
+
+# Local pre-fix catalog snapshot created by scripts/fix_vehicle_catalog.py
+scripts/vehicle_catalog_v2.0.0_pre_fix.csv

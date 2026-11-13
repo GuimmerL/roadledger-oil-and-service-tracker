@@ -18,6 +18,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import ca.gllavoie.vehicletracker.MainActivity
+import ca.gllavoie.vehicletracker.R
 import ca.gllavoie.vehicletracker.VehicleTrackerApplication
 import ca.gllavoie.vehicletracker.data.local.VehicleEntity
 import ca.gllavoie.vehicletracker.data.repository.calculateVehicleOilSchedule
@@ -34,6 +35,8 @@ object OilReminderNotifications {
     private const val ENABLED_KEY = "enabled"
     private const val FINGERPRINT_PREFIX = "last_notice_"
     internal const val NOTIFICATION_TAG_PREFIX = "oil-reminder-"
+    const val EXTRA_VEHICLE_ID = "ca.gllavoie.vehicletracker.EXTRA_VEHICLE_ID"
+    const val EXTRA_VEHICLE_NAME = "ca.gllavoie.vehicletracker.EXTRA_VEHICLE_NAME"
 
     fun isEnabled(context: Context): Boolean = preferences(context).getBoolean(ENABLED_KEY, false)
 
@@ -78,9 +81,9 @@ object OilReminderNotifications {
         if (Build.VERSION.SDK_INT >= 26) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Oil change reminders",
+                context.getString(R.string.oil_reminder_channel_name),
                 NotificationManager.IMPORTANCE_DEFAULT
-            ).apply { description = "Reminders when a vehicle is approaching or past its oil change interval." }
+            ).apply { description = context.getString(R.string.oil_reminder_channel_description) }
             notificationManager(context).createNotificationChannel(channel)
         }
     }
@@ -91,8 +94,8 @@ object OilReminderNotifications {
         MaintenanceStatus.OVERDUE
     )
 
-    internal fun title(): String = "Change oil soon"
-    internal fun message(vehicleName: String): String = "Change oil soon for $vehicleName."
+    internal fun title(context: Context): String = context.getString(R.string.oil_reminder_title)
+    internal fun message(context: Context, vehicleName: String): String = context.getString(R.string.oil_reminder_message, vehicleName)
 
     internal fun postForVehicle(context: Context, vehicle: VehicleEntity, fingerprint: String) {
         val tag = NOTIFICATION_TAG_PREFIX + vehicle.id
@@ -103,6 +106,9 @@ object OilReminderNotifications {
         val label = vehicle.nickname?.takeIf(String::isNotBlank)
             ?: listOfNotNull(vehicle.modelYear?.toString(), vehicle.make, vehicle.model).joinToString(" ")
         val intent = Intent(context, MainActivity::class.java)
+            .putExtra(EXTRA_VEHICLE_ID, vehicle.id)
+            .putExtra(EXTRA_VEHICLE_NAME, label)
+            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val pendingIntent = PendingIntent.getActivity(
             context,
             vehicle.id.hashCode(),
@@ -110,10 +116,11 @@ object OilReminderNotifications {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notification = Notification.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle(title())
-            .setContentText(message(label))
-            .setStyle(Notification.BigTextStyle().bigText(message(label)))
+            .setSmallIcon(R.drawable.ic_stat_oil)
+            .setCategory(Notification.CATEGORY_REMINDER)
+            .setContentTitle(title(context))
+            .setContentText(message(context, label))
+            .setStyle(Notification.BigTextStyle().bigText(message(context, label)))
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .build()

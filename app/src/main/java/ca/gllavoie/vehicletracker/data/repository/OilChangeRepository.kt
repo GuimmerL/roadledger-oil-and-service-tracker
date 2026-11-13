@@ -15,6 +15,7 @@ interface OilChangeRepository {
 class RoomOilChangeRepository(
     private val dao: VehicleDao,
     private val vehicleRepository: VehicleRepository,
+    private val zoneId: ZoneId = ZoneId.systemDefault(),
     private val today: () -> LocalDate = { LocalDate.now(ZoneId.systemDefault()) }
 ) : OilChangeRepository {
     override fun observeRecords(vehicleId: String): Flow<List<OilChangeEntity>> = dao.observeOilChanges(vehicleId)
@@ -63,7 +64,7 @@ class RoomOilChangeRepository(
             vehicleId = record.vehicleId,
             value = record.odometerValue,
             unit = record.odometerUnit,
-            recordedAtUtc = serviceDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            recordedAtUtc = serviceDate.atStartOfDay(zoneId).toInstant().toEpochMilli(),
             sourceType = "OIL_CHANGE",
             sourceRecordId = record.id,
             notes = "Odometer recorded with oil change",

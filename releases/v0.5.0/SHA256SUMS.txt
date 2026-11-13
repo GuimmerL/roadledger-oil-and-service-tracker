@@ -1,0 +1,2 @@
+16d2d3cd45e019fdc6596f21d8e8aebc62606012be0f4b5e6cd3489e3c2fba3e  Vehicle_Tracker_v0.5.0_debug.apk
+3ee54366d516fd3fb58a0ada282b4d9226998b7ff47457bf19f1916aad246424  Vehicle_Tracker_v0.5.0_Source_Code.zip

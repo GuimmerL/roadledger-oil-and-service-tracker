@@ -32,6 +32,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -39,6 +40,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import ca.gllavoie.vehicletracker.R
 import ca.gllavoie.vehicletracker.data.local.ReceiptAttachmentEntity
 import ca.gllavoie.vehicletracker.data.local.VehicleEntity
 import ca.gllavoie.vehicletracker.data.repository.ReceiptRepository
@@ -57,6 +59,7 @@ fun VehicleDocumentsSection(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val savingVehicleDocumentCd = stringResource(R.string.saving_vehicle_document_cd)
     val documents by repository.observeVehicleDocuments(vehicle.id).collectAsStateWithLifecycle(emptyList())
     var selectedType by rememberSaveable(vehicle.id) { mutableStateOf(VehicleDocumentType.INSURANCE.storedValue) }
     var showAddDialog by rememberSaveable(vehicle.id) { mutableStateOf(false) }
@@ -74,9 +77,9 @@ fun VehicleDocumentsSection(
             try {
                 val displayName = queryDisplayName(context, uri, fallbackName)
                 repository.addForVehicle(vehicle.id, selectedType, uri, displayName)
-                message = "${VehicleDocumentType.fromStoredValue(selectedType).label} document saved."
+                message = context.getString(R.string.document_saved_format, VehicleDocumentType.fromStoredValue(selectedType).label)
             } catch (failure: Exception) {
-                error = failure.message ?: "Unable to save this document."
+                error = failure.message ?: context.getString(R.string.unable_to_save_document)
             } finally {
                 temporaryFile?.delete()
                 busy = false
@@ -101,7 +104,7 @@ fun VehicleDocumentsSection(
                     saveDocument(uri, "Vehicle-photo.jpg", temporaryFile = file)
                 }.onFailure { failure ->
                     file.delete()
-                    error = failure.message ?: "Unable to open the captured photo."
+                    error = failure.message ?: context.getString(R.string.unable_to_open_captured_photo)
                 }
             } else {
                 file.delete()
@@ -112,9 +115,9 @@ fun VehicleDocumentsSection(
     fun launchCamera() {
         try {
             val directory = File(context.filesDir, "receipts")
-            require(directory.mkdirs() || directory.isDirectory) { "Document storage is not available." }
+            require(directory.mkdirs() || directory.isDirectory) { context.getString(R.string.document_storage_unavailable) }
             val file = File(directory, ".capture-${UUID.randomUUID()}.jpg")
-            require(file.createNewFile()) { "A photo capture file could not be created." }
+            require(file.createNewFile()) { context.getString(R.string.photo_capture_file_error) }
             cameraCapturePath = file.absolutePath
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
             showAddDialog = false
@@ -122,19 +125,19 @@ fun VehicleDocumentsSection(
         } catch (failure: Exception) {
             cameraCapturePath?.let { File(it).delete() }
             cameraCapturePath = null
-            error = failure.message ?: "Unable to start the camera."
+            error = failure.message ?: context.getString(R.string.unable_to_start_camera)
         }
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("Vehicle documents", style = MaterialTheme.typography.titleMedium)
-        Text("Insurance, service records and other files · PDF or common image formats (JPG, PNG, WebP, GIF, HEIC/HEIF, AVIF) · up to 10 MB each · stored privately on this device.", style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.vehicle_documents), style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.vehicle_documents_hint), style = MaterialTheme.typography.bodySmall)
         Button(onClick = { showAddDialog = true; error = null }, enabled = enabled && !busy) {
-            if (busy) CircularProgressIndicator(Modifier.semantics { contentDescription = "Saving vehicle document" }) else Text("Add vehicle document")
+            if (busy) CircularProgressIndicator(Modifier.semantics { contentDescription = savingVehicleDocumentCd }) else Text(stringResource(R.string.add_vehicle_document))
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive }) }
         message?.let { Text(it, color = MaterialTheme.colorScheme.primary, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
-        if (documents.isEmpty()) Text("No vehicle documents saved.", style = MaterialTheme.typography.bodySmall)
+        if (documents.isEmpty()) Text(stringResource(R.string.no_vehicle_documents), style = MaterialTheme.typography.bodySmall)
         documents.forEach { document ->
             VehicleDocumentRow(
                 attachment = document,
@@ -146,11 +149,11 @@ fun VehicleDocumentsSection(
                             val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
                             val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, document.mimeType)
                                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            context.startActivity(Intent.createChooser(intent, "Open vehicle document"))
+                            context.startActivity(Intent.createChooser(intent, context.getString(R.string.open_vehicle_document)))
                         } catch (_: ActivityNotFoundException) {
-                            error = "No application is available to open this file."
+                            error = context.getString(R.string.no_app_to_open_file)
                         } catch (failure: Exception) {
-                            error = failure.message ?: "Unable to open this document."
+                            error = failure.message ?: context.getString(R.string.unable_to_open_document)
                         }
                     }
                 },
@@ -163,10 +166,10 @@ fun VehicleDocumentsSection(
     if (showAddDialog) {
         AlertDialog(
             onDismissRequest = { if (!busy) showAddDialog = false },
-            title = { Text("Add vehicle document") },
+            title = { Text(stringResource(R.string.add_vehicle_document)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Choose a category, then take a picture or select a file.", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.add_document_hint), style = MaterialTheme.typography.bodyMedium)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(VehicleDocumentType.vehicleDocumentTypes, key = { it.storedValue }) { type ->
                             FilterChip(
@@ -177,32 +180,32 @@ fun VehicleDocumentsSection(
                             )
                         }
                     }
-                    TextButton(onClick = { launchCamera() }, enabled = !busy) { Text("Take photo") }
+                    TextButton(onClick = { launchCamera() }, enabled = !busy) { Text(stringResource(R.string.take_photo)) }
                     TextButton(
                         onClick = {
                             showAddDialog = false
                             chooseImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                         },
                         enabled = !busy
-                    ) { Text("Choose image") }
+                    ) { Text(stringResource(R.string.choose_image)) }
                     TextButton(
                         onClick = {
                             showAddDialog = false
                             choosePdf.launch(arrayOf("application/pdf"))
                         },
                         enabled = !busy
-                    ) { Text("Choose PDF") }
+                    ) { Text(stringResource(R.string.choose_pdf)) }
                 }
             },
-            confirmButton = { TextButton(onClick = { showAddDialog = false }, enabled = !busy) { Text("Cancel") } }
+            confirmButton = { TextButton(onClick = { showAddDialog = false }, enabled = !busy) { Text(stringResource(R.string.cancel)) } }
         )
     }
 
     deleteTarget?.let { target ->
         AlertDialog(
             onDismissRequest = { if (!busy) deleteTarget = null },
-            title = { Text("Remove vehicle document?") },
-            text = { Text("${target.originalFileName} will be removed from this vehicle. This does not change service records.") },
+            title = { Text(stringResource(R.string.remove_vehicle_document_title)) },
+            text = { Text(stringResource(R.string.remove_vehicle_document_message, target.originalFileName)) },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
@@ -212,14 +215,14 @@ fun VehicleDocumentsSection(
                             repository.delete(target.id)
                             deleteTarget = null
                         } catch (failure: Exception) {
-                            error = failure.message ?: "Unable to remove this document."
+                            error = failure.message ?: context.getString(R.string.unable_to_remove_document)
                         } finally {
                             busy = false
                         }
                     }
-                }, enabled = !busy) { Text("Remove") }
+                }, enabled = !busy) { Text(stringResource(R.string.remove)) }
             },
-            dismissButton = { TextButton(onClick = { deleteTarget = null }, enabled = !busy) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { deleteTarget = null }, enabled = !busy) { Text(stringResource(R.string.cancel)) } }
         )
     }
 }
@@ -232,11 +235,11 @@ private fun VehicleDocumentRow(
     enabled: Boolean
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text("${VehicleDocumentType.fromStoredValue(attachment.documentType).label}: ${attachment.originalFileName}", style = MaterialTheme.typography.bodyLarge)
-        Text("${attachment.mimeType} · ${attachment.sizeBytes} bytes · ${DateFormat.getDateTimeInstance().format(Date(attachment.addedAtUtc))}", style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.label_value_format, VehicleDocumentType.fromStoredValue(attachment.documentType).label, attachment.originalFileName), style = MaterialTheme.typography.bodyLarge)
+        Text(stringResource(R.string.attachment_info_format, attachment.mimeType, stringResource(R.string.bytes_unit, attachment.sizeBytes), DateFormat.getDateTimeInstance().format(Date(attachment.addedAtUtc))), style = MaterialTheme.typography.bodySmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = onOpen) { Text("Open") }
-            TextButton(onClick = onDelete, enabled = enabled) { Text("Remove") }
+            TextButton(onClick = onOpen) { Text(stringResource(R.string.open)) }
+            TextButton(onClick = onDelete, enabled = enabled) { Text(stringResource(R.string.remove)) }
         }
         HorizontalDivider()
     }

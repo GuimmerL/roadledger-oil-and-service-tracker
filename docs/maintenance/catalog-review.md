@@ -6,6 +6,33 @@ The active bundled database is imported from `exports/vehicle_catalog_v2.0.0_pro
 
 Normal and severe distance intervals are imported from the production file's metric columns and stored in KM; mile values and all other source columns remain in the original-row provenance. Oil capacities and torque fields are blank in this production export and remain unknown. Year rows are selectable individually. The app only splits engine lists when labels and interval data are unambiguous.
 
+## Catalog data revision 2.1.0 (2026-11-12)
+
+The bundled CSV was re-audited against its own `original_catalog_id` provenance text and its engine/oil fields. **1,872 cells across 1,440 rows** were corrected, **940 malformed engine fragments were merged**, **7 exact duplicates removed**, and **14 Tesla electric drive-unit rows removed** (gearbox fluid, not engine oil). The catalog now has **15,149 rows** (15,083 `AI_GENERATED_UNVERIFIED` + 66 `OFFICIAL_INTERVAL_RESEARCHED`). Every correction is derived from the row itself; no value was invented.
+
+| Correction | Cells / rows | Detail |
+|---|---:|---|
+| Normal time interval | 102 | Source text says `7.5 mo`; the export had truncated it to `5`. Stored as `8` months (nearest whole month; the schema stores integers). |
+| Severe time interval | 52 | Source text says `3.75 mo`; the export had read it as `75`. Stored as `4` months. |
+| Manufacturer approval | 392 | Trimmed surrounding whitespace; normalised `Dexos2` to the official `dexos2`. |
+| API service category | 110 | `API C` → `API C-4` (38) and `API CK` → `API CK-4` (72), matching the row's own oil recommendation. |
+| Induction type | 854 | `NATURALLY_ASPIRATED` → `TURBOCHARGED` where the engine trim names a turbo/TFSI/TSI/FSI/TDI/CDTI/TD engine. |
+| Fuel type | 362 | `GASOLINE` → `DIESEL` (112) where the trim names a CDI/CDTI/TDI/TD diesel; `DIESEL` → `GASOLINE` (250) where the trim names a TSI/FSI/VR6 gasoline engine. |
+| Engine fragments merged | 782 rows | The source engine list was split inside parentheses (`5.6L V8 (VK56DE` / `VK56VD)`). Fragments were rejoined into their full variants. |
+| Exact duplicates removed | 7 | Mercedes-Benz E-Class W212, 2010–2016, 3.5L V6. |
+| Electric drive-unit rows removed | 14 | Tesla rows described the drive-unit gearbox fluid (150,000 mi inspection), not engine oil. |
+
+`VehicleCatalogSeeder.CATALOG_VERSION` was bumped to `2.1.0`. The seeder refreshes untouched `AI_GENERATED_UNVERIFIED` rows when the version changes, and removes rows that no longer exist in the bundled file (merged/deduplicated/removed) as long as no vehicle references them. User-edited rows (`USER_ENTERED_UNVERIFIED`), user-verified rows, source-researched rows, and referenced legacy rows are preserved. Before this change, existing installs kept stale catalog data.
+
+Maintenance scripts: `scripts/audit_vehicle_catalog.py` (read-only report), `scripts/fix_vehicle_catalog.py` (idempotent field corrections; `--dry-run`), and `scripts/repair_engine_fragments.py` (engine-list repair; `--dry-run`).
+
+### Still unresolved
+
+- **163 rows** have severe distance equal to normal distance and no severe time limit; the source gives a distance-only severe range (`3,000-5,000 mi / Off-road`).
+- **Missing fields that need OEM sources:** oil capacity, drain-plug torque/socket, and filter wrench size are empty for all rows; cylinder config, OEM engine code, approval, and API category are blank for 30–65% of rows. These were not invented.
+- **Naming consistency:** `Scion` and `Scion / Toyota` are separate makes; `Ford Australia` is separate from `Ford`; `market_region` mixes 11 granularity levels.
+- **136 rows labelled `DIESEL` have no diesel word in the trim** and need per-model review (e.g., Audi Q7 3.0T, Ford PowerStroke, Land Rover 300Tdi are legitimate).
+
 ## OEM interval suggestions
 
 The source CSV contains 66 entries marked `OFFICIAL_INTERVAL_RESEARCHED`. The tables below retain the previously documented source checks; use the CSV's `verification_source_name` and `verification_source_url` columns to review each additional suggestion. None is schedule-active until a user verifies the exact entry.
@@ -76,4 +103,4 @@ A schedule also needs an oil-change record and a usable interval. A per-service 
 
 ## Reproducibility
 
-The production CSV is the source of truth for the v2.0.0 catalog and is bundled unchanged. `VehicleCatalogSeeder` imports it idempotently with stable per-row IDs and records the seed version in `app_settings`. It retains legacy catalog rows so vehicle foreign keys remain valid. The prior enrichment script describes the retired 518-row catalog and does not regenerate the v2.0.0 production file.
+The production CSV is the source of truth for the catalog and is bundled unchanged. `VehicleCatalogSeeder` imports it idempotently with stable per-row IDs and records the seed version (`2.0.1`) in `app_settings`. On a version change it refreshes untouched `AI_GENERATED_UNVERIFIED` rows so data corrections reach existing installs, while preserving user-edited, user-verified, and source-researched rows. It retains legacy catalog rows so vehicle foreign keys remain valid. `scripts/audit_vehicle_catalog.py` reports structural and consistency problems; `scripts/fix_vehicle_catalog.py` applies the 2.0.1 corrections idempotently. The prior enrichment script describes the retired 518-row catalog and does not regenerate the production file.

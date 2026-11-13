@@ -93,7 +93,11 @@ interface VehicleDao {
     suspend fun getSpecificationSources(specificationId: String): List<SpecificationSourceEntity>
 
     @Transaction
-    suspend fun seedSpecificationsIfMissing(specifications: List<VehicleSpecificationEntity>, sources: List<SpecificationSourceEntity>) {
+    suspend fun seedSpecificationsIfMissing(
+        specifications: List<VehicleSpecificationEntity>,
+        sources: List<SpecificationSourceEntity>,
+        catalogIdPrefix: String
+    ) {
         val legacyOfficialIds = mutableListOf<String>()
         val existingById = getAllSpecifications().associateBy { it.id }
         val metricNotePrefixes = listOf(
@@ -105,10 +109,12 @@ interface VehicleDao {
         )
         for (seeded in specifications) {
             val existing = existingById[seeded.id] ?: continue
-            val hasMetricNote = existing.serviceNotes.orEmpty().lineSequence()
-                .any { it.startsWith("Catalog metric status:") }
             when {
-                existing.verificationStatus == "AI_GENERATED_UNVERIFIED" && !hasMetricNote -> {
+                // Only untouched AI rows are refreshed. User-edited rows carry
+                // USER_ENTERED_UNVERIFIED, verified rows USER_VERIFIED, and researched
+                // rows OFFICIAL_INTERVAL_RESEARCHED, so a catalog-data revision reaches
+                // existing installs without overwriting user changes.
+                existing.verificationStatus == "AI_GENERATED_UNVERIFIED" -> {
                     updateSpecification(seeded.copy(createdAtUtc = existing.createdAtUtc, updatedAtUtc = existing.updatedAtUtc))
                 }
                 existing.verificationStatus == "OFFICIAL_INTERVAL_VERIFIED" -> {
@@ -147,7 +153,28 @@ interface VehicleDao {
                     )
                 }
         }
+        // Drop catalog rows that no longer exist in the bundled file (merged engine
+        // fragments, deduplicated rows, removed electric drive-unit rows). Never touch
+        // rows a vehicle still references or rows from an older catalog generation.
+        val seededIds = specifications.mapTo(HashSet()) { it.id }
+        val referencedIds = getAllVehicles().mapNotNullTo(HashSet()) { it.defaultSpecificationId }
+        val staleRows = existingById.values.filter { row ->
+            row.id.startsWith(catalogIdPrefix) &&
+                row.verificationStatus == "AI_GENERATED_UNVERIFIED" &&
+                row.id !in seededIds &&
+                row.id !in referencedIds
+        }
+        for (row in staleRows) {
+            deleteSpecificationSources(row.id)
+            deleteSpecification(row.id)
+        }
     }
+
+    @Query("DELETE FROM specification_sources WHERE specificationId = :specificationId")
+    suspend fun deleteSpecificationSources(specificationId: String)
+
+    @Query("DELETE FROM vehicle_specifications WHERE id = :specificationId")
+    suspend fun deleteSpecification(specificationId: String)
 
     @Query("SELECT * FROM vehicle_specification_overrides WHERE vehicleId = :vehicleId")
     fun observeSpecificationOverride(vehicleId: String): Flow<VehicleSpecificationOverrideEntity?>

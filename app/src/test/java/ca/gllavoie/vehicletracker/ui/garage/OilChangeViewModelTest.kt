@@ -156,7 +156,7 @@ private class StubSpecificationRepository : VehicleSpecificationRepository {
     override suspend fun getCatalogEntry(specificationId: String) = catalog.value.firstOrNull { it.id == specificationId }
     override suspend fun getSources(specificationId: String): List<SpecificationSourceEntity> = emptyList()
     override suspend fun saveCatalogEntry(specification: VehicleSpecificationEntity, verifiedSource: SpecificationSourceEntity?) = Unit
-    override suspend fun seedCatalogIfMissing(specifications: List<VehicleSpecificationEntity>, sources: List<SpecificationSourceEntity>) = Unit
+    override suspend fun seedCatalogIfMissing(specifications: List<VehicleSpecificationEntity>, sources: List<SpecificationSourceEntity>, catalogIdPrefix: String) = Unit
     override fun observeOverride(vehicleId: String): Flow<VehicleSpecificationOverrideEntity?> = value
     override suspend fun saveOverride(override: VehicleSpecificationOverrideEntity) { value.value = override }
 }

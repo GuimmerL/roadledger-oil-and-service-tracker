@@ -18,7 +18,11 @@ interface VehicleSpecificationRepository {
     suspend fun getCatalogEntry(specificationId: String): VehicleSpecificationEntity?
     suspend fun getSources(specificationId: String): List<SpecificationSourceEntity>
     suspend fun saveCatalogEntry(specification: VehicleSpecificationEntity, verifiedSource: SpecificationSourceEntity? = null)
-    suspend fun seedCatalogIfMissing(specifications: List<VehicleSpecificationEntity>, sources: List<SpecificationSourceEntity>)
+    suspend fun seedCatalogIfMissing(
+        specifications: List<VehicleSpecificationEntity>,
+        sources: List<SpecificationSourceEntity>,
+        catalogIdPrefix: String
+    )
     fun observeOverride(vehicleId: String): Flow<VehicleSpecificationOverrideEntity?>
     suspend fun saveOverride(override: VehicleSpecificationOverrideEntity)
     suspend fun getSeededCatalogVersion(): String? = null
@@ -40,8 +44,12 @@ class RoomVehicleSpecificationRepository(
 
     override suspend fun getSources(specificationId: String): List<SpecificationSourceEntity> = dao.getSpecificationSources(specificationId)
 
-    override suspend fun seedCatalogIfMissing(specifications: List<VehicleSpecificationEntity>, sources: List<SpecificationSourceEntity>) {
-        dao.seedSpecificationsIfMissing(specifications, sources)
+    override suspend fun seedCatalogIfMissing(
+        specifications: List<VehicleSpecificationEntity>,
+        sources: List<SpecificationSourceEntity>,
+        catalogIdPrefix: String
+    ) {
+        dao.seedSpecificationsIfMissing(specifications, sources, catalogIdPrefix)
     }
 
     override suspend fun saveCatalogEntry(specification: VehicleSpecificationEntity, verifiedSource: SpecificationSourceEntity?) {

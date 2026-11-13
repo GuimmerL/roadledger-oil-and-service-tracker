@@ -10,7 +10,7 @@ The ZIP contains:
 - `database.json`: machine-readable SQLite table/column/row export for all app tables, captured inside a SQLite transaction.
 - `attachments/receipts/<internal-name>`: original receipt bytes. Internal filenames are UUID-based; original names remain in the database metadata.
 
-Room schema v3 is current. Backups from Room schema v1 are upgraded during validation by adding a null starting-daily-usage value and a `NORMAL` interval mode to each vehicle. Schema-v2 backups are upgraded by adding a `NORMAL` interval mode. Stable IDs, readings, and receipts are preserved. Other unsupported versions, missing/extra entries, unsafe paths, duplicate ZIP entries, malformed rows, duplicate primary keys, broken references, mismatched counts, missing receipt files, and size/checksum mismatches are rejected before the live database is touched. The implementation caps a ZIP at 200 MiB, a JSON database export at 50 MiB, and each receipt at 10 MiB.
+Room schema v5 is current. Backups from older schemas are upgraded during validation by adding the missing columns with their defaults (null starting-daily-usage, `NORMAL` interval mode, `OTHER` vehicle type, `RECEIPT` document category). Stable IDs, readings, and receipts are preserved. Other unsupported versions, missing/extra entries, unsafe paths, duplicate ZIP entries, malformed rows, duplicate primary keys, broken references, mismatched counts, missing receipt files, and size/checksum mismatches are rejected before the live database is touched. The archive is streamed to and from a temporary file, so large receipt collections do not have to fit in memory. The implementation caps a ZIP at 200 MiB, a JSON database export at 50 MiB, and each receipt at 10 MiB.
 
 ## Create a backup
 

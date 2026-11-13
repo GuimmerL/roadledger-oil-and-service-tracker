@@ -20,6 +20,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.DropdownMenu
@@ -35,6 +36,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -57,6 +61,7 @@ import java.text.NumberFormat
 import java.time.Instant
 import java.time.ZoneId
 import androidx.lifecycle.viewmodel.compose.viewModel
+import ca.gllavoie.vehicletracker.R
 import ca.gllavoie.vehicletracker.domain.calculation.MaintenanceStatus
 import ca.gllavoie.vehicletracker.data.local.VehicleEntity
 import ca.gllavoie.vehicletracker.data.local.VehicleSpecificationEntity
@@ -78,6 +83,7 @@ import ca.gllavoie.vehicletracker.domain.vehicle.VehicleType
 import ca.gllavoie.vehicletracker.preferences.convertDailyDistance
 import ca.gllavoie.vehicletracker.preferences.convertDistanceIntervalToUnit
 import ca.gllavoie.vehicletracker.preferences.formatDailyDistance
+import kotlinx.coroutines.flow.flowOf
 
 @Composable
 fun GarageRoute(
@@ -168,6 +174,14 @@ fun GarageScreen(
     val sortedVisibleVehicles = remember(state.visibleVehicles, sortOrder) {
         sortOrder.sort(state.visibleVehicles)
     }
+    val sortOrderLabel = stringResource(sortOrder.labelRes)
+    val sortVehiclesCd = stringResource(R.string.sort_vehicles_cd, sortOrderLabel)
+    val showArchivedVehiclesCd = stringResource(R.string.show_archived_vehicles_cd)
+    val loadingVehiclesCd = stringResource(R.string.loading_vehicles)
+    val archivingVehicleCd = stringResource(R.string.archiving_vehicle_cd)
+    val deletingVehicleCd = stringResource(R.string.deleting_vehicle_cd)
+    val loadingVehicleDetailsCd = stringResource(R.string.loading_vehicle_details)
+    val savingVehicleCd = stringResource(R.string.saving_vehicle_cd)
     var editorTargetId by rememberSaveable { mutableStateOf<String?>(null) }
     var archiveTargetId by rememberSaveable { mutableStateOf<String?>(null) }
     var deleteTargetId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -192,7 +206,9 @@ fun GarageScreen(
         }
     }
     val snackbarHostState = remember { SnackbarHostState() }
-    val catalogEntries by specificationRepository.observeSpecificationsForDataset(VehicleCatalogSeeder.CATALOG_ID_PREFIX).collectAsStateWithLifecycle(emptyList())
+    val catalogEntries by remember(specificationRepository) {
+        specificationRepository.observeSpecificationsForDataset(VehicleCatalogSeeder.CATALOG_ID_PREFIX)
+    }.collectAsStateWithLifecycle(emptyList())
     LaunchedEffect(state.message) {
         state.message?.let {
             snackbarHostState.showSnackbar(it)
@@ -260,13 +276,17 @@ fun GarageScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(if (state.showArchived) "Archived vehicles" else "Active vehicles", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        if (state.showArchived) stringResource(R.string.vehicles_archived_title)
+                        else stringResource(R.string.vehicles_active_title),
+                        style = MaterialTheme.typography.titleMedium
+                    )
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Show archived", style = MaterialTheme.typography.labelMedium)
+                        Text(stringResource(R.string.show_archived_label), style = MaterialTheme.typography.labelMedium)
                         Switch(
                             checked = state.showArchived,
                             onCheckedChange = onShowArchived,
-                            modifier = Modifier.semantics { contentDescription = "Show archived vehicles" }
+                            modifier = Modifier.semantics { contentDescription = showArchivedVehiclesCd }
                         )
                     }
                 }
@@ -279,7 +299,7 @@ fun GarageScreen(
                         },
                         enabled = !state.isSaving
                     ) {
-                        Text("Add vehicle")
+                        Text(stringResource(R.string.add_vehicle))
                     }
                 }
                 if (state.visibleVehicles.isNotEmpty()) {
@@ -288,19 +308,24 @@ fun GarageScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Sort vehicles", style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.sort_vehicles_label), style = MaterialTheme.typography.bodyMedium)
                         Box {
                             TextButton(
                                 onClick = { sortMenuExpanded = true },
-                                modifier = Modifier.semantics { contentDescription = "Sort vehicles: ${sortOrder.label}" }
-                            ) { Text(sortOrder.label) }
+                                modifier = Modifier.semantics { contentDescription = sortVehiclesCd }
+                            ) { Text(sortOrderLabel) }
                             DropdownMenu(
                                 expanded = sortMenuExpanded,
                                 onDismissRequest = { sortMenuExpanded = false }
                             ) {
                                 GarageSortOrder.entries.forEach { option ->
                                     DropdownMenuItem(
-                                        text = { Text(if (option == sortOrder) "✓ ${option.label}" else option.label) },
+                                        text = {
+                                        Text(
+                                            if (option == sortOrder) stringResource(R.string.sort_option_selected, stringResource(option.labelRes))
+                                            else stringResource(option.labelRes)
+                                        )
+                                    },
                                         onClick = {
                                             sortOrder = option
                                             GarageSortPreferences.set(context, option)
@@ -315,7 +340,7 @@ fun GarageScreen(
                 val hasLoadedVisibleVehicles = if (state.showArchived) state.hasLoadedArchivedVehicles else state.hasLoadedActiveVehicles
                 when {
                     !hasLoadedVisibleVehicles -> Box(Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(Modifier.semantics { contentDescription = "Loading vehicles" })
+                        CircularProgressIndicator(Modifier.semantics { contentDescription = loadingVehiclesCd })
                     }
                     state.visibleVehicles.isEmpty() -> EmptyGarage(
                         archived = state.showArchived,
@@ -369,9 +394,9 @@ fun GarageScreen(
         if (editorTargetId != null && editorTarget == null) {
             AlertDialog(
                 onDismissRequest = { editorTargetId = null },
-                title = { Text("Loading vehicle") },
-                text = { CircularProgressIndicator(Modifier.semantics { contentDescription = "Loading vehicle details" }) },
-                confirmButton = { TextButton(onClick = { editorTargetId = null }) { Text("Cancel") } }
+                title = { Text(stringResource(R.string.loading_vehicle)) },
+                text = { CircularProgressIndicator(Modifier.semantics { contentDescription = loadingVehicleDetailsCd }) },
+                confirmButton = { TextButton(onClick = { editorTargetId = null }) { Text(stringResource(R.string.cancel)) } }
             )
         } else {
             VehicleEditorDialog(
@@ -399,10 +424,15 @@ fun GarageScreen(
                     onClearArchiveError()
                 }
             },
-            title = { Text("Archive vehicle?") },
+            title = { Text(stringResource(R.string.archive_vehicle_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("${target.modelYear?.toString()?.plus(" ") ?: ""}${target.make} ${target.model} will be hidden from active vehicles. Its maintenance and service history will be retained and can be restored later.")
+                    Text(
+                        stringResource(
+                            R.string.archive_vehicle_message,
+                            listOfNotNull(target.modelYear?.toString(), target.make, target.model).joinToString(" ")
+                        )
+                    )
                     state.archiveError?.let { error ->
                         Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
                     }
@@ -410,11 +440,11 @@ fun GarageScreen(
             },
             confirmButton = {
                 TextButton(onClick = { onArchive(target) }, enabled = !actionPending) {
-                    if (actionPending) CircularProgressIndicator(Modifier.semantics { contentDescription = "Archiving vehicle" }) else Text("Archive")
+                    if (actionPending) CircularProgressIndicator(Modifier.semantics { contentDescription = archivingVehicleCd }) else Text(stringResource(R.string.archive))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { archiveTargetId = null; onClearArchiveError() }, enabled = !actionPending) { Text("Cancel") }
+                TextButton(onClick = { archiveTargetId = null; onClearArchiveError() }, enabled = !actionPending) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -427,10 +457,15 @@ fun GarageScreen(
                     onClearDeleteError()
                 }
             },
-            title = { Text("Permanently delete vehicle?") },
+            title = { Text(stringResource(R.string.delete_vehicle_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("${target.modelYear?.toString()?.plus(" ") ?: ""}${target.make} ${target.model} and all its oil changes, fuel records, odometer history, vehicle documents, vehicle-specific recommendations, and receipt files will be permanently removed. This cannot be undone. Shared catalog entries will remain.")
+                    Text(
+                        stringResource(
+                            R.string.delete_vehicle_message,
+                            listOfNotNull(target.modelYear?.toString(), target.make, target.model).joinToString(" ")
+                        )
+                    )
                     state.deleteError?.let { error ->
                         Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive })
                     }
@@ -438,12 +473,12 @@ fun GarageScreen(
             },
             confirmButton = {
                 TextButton(onClick = { onDelete(target) }, enabled = !actionPending) {
-                    if (actionPending) CircularProgressIndicator(Modifier.semantics { contentDescription = "Deleting vehicle and associated records" })
-                    else Text("Delete permanently", color = MaterialTheme.colorScheme.error)
+                    if (actionPending) CircularProgressIndicator(Modifier.semantics { contentDescription = deletingVehicleCd })
+                    else Text(stringResource(R.string.delete_permanently), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { deleteTargetId = null; onClearDeleteError() }, enabled = !actionPending) { Text("Cancel") }
+                TextButton(onClick = { deleteTargetId = null; onClearDeleteError() }, enabled = !actionPending) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -456,12 +491,15 @@ private fun EmptyGarage(archived: Boolean, onAdd: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(if (archived) "No archived vehicles" else "Your garage is empty", style = MaterialTheme.typography.titleLarge)
         Text(
-            if (archived) "Archived vehicles will appear here and can be restored." else "Add a vehicle to start keeping its maintenance and fuel records.",
+            if (archived) stringResource(R.string.no_archived_vehicles) else stringResource(R.string.garage_empty_title),
+            style = MaterialTheme.typography.titleLarge
+        )
+        Text(
+            if (archived) stringResource(R.string.archived_vehicles_hint) else stringResource(R.string.garage_empty_hint),
             style = MaterialTheme.typography.bodyMedium
         )
-        if (!archived) Button(onClick = onAdd) { Text("Add your first vehicle") }
+        if (!archived) Button(onClick = onAdd) { Text(stringResource(R.string.add_first_vehicle)) }
     }
 }
 
@@ -487,21 +525,28 @@ private fun VehicleCard(
     onOpenSpecifications: () -> Unit
 ) {
     var actionsExpanded by rememberSaveable(vehicle.id) { mutableStateOf(false) }
-    val odometerReadings by odometerRepository.observeReadings(vehicle.id).collectAsStateWithLifecycle(emptyList())
-    val oilChanges by oilChangeRepository.observeRecords(vehicle.id).collectAsStateWithLifecycle(emptyList())
-    val specification by specificationRepository.observeOverride(vehicle.id).collectAsStateWithLifecycle(null)
-    val catalogSpecification by specificationRepository.observeCatalogEntry(vehicle.defaultSpecificationId.orEmpty()).collectAsStateWithLifecycle(null)
+    val odometerReadings by remember(vehicle.id) { odometerRepository.observeReadings(vehicle.id) }.collectAsStateWithLifecycle(emptyList())
+    val oilChanges by remember(vehicle.id) { oilChangeRepository.observeRecords(vehicle.id) }.collectAsStateWithLifecycle(emptyList())
+    val specification by remember(vehicle.id) { specificationRepository.observeOverride(vehicle.id) }.collectAsStateWithLifecycle(null)
+    val catalogSpecification by remember(vehicle.defaultSpecificationId) {
+        vehicle.defaultSpecificationId?.let(specificationRepository::observeCatalogEntry) ?: flowOf(null)
+    }.collectAsStateWithLifecycle(null)
     val latestReading = odometerReadings.firstOrNull()
     val latestService = oilChanges.firstOrNull()
-    val schedule = latestService?.let { calculateVehicleOilSchedule(vehicle, it, odometerReadings, specification, catalogSpecification) }
-    val odometerUnitLabel = if (vehicle.odometerUnit == "MILE") "mi" else "km"
-    val intervalUnitLabel = if (vehicle.odometerUnit == "MILE") "mi" else "km"
-    val observedDailyUsage = estimateDailyDistancePerDay(odometerReadings, vehicle.odometerUnit)
+    val schedule = remember(vehicle, latestService, odometerReadings, specification, catalogSpecification) {
+        latestService?.let { calculateVehicleOilSchedule(vehicle, it, odometerReadings, specification, catalogSpecification) }
+    }
+    val odometerUnitLabel = stringResource(if (vehicle.odometerUnit == "MILE") R.string.unit_mi else R.string.unit_km)
+    val vehicleActionsCd = stringResource(R.string.vehicle_actions_cd)
+    val intervalUnitLabel = stringResource(if (vehicle.odometerUnit == "MILE") R.string.unit_mi else R.string.unit_km)
+    val observedDailyUsage = remember(odometerReadings, vehicle.odometerUnit) {
+        estimateDailyDistancePerDay(odometerReadings, vehicle.odometerUnit)
+    }
     val startingDailyUsage = vehicle.startingDailyUsageKmPerDay?.let { convertDailyDistance(it, "KM", vehicle.odometerUnit) }
     val dailyUsageLabel = when {
-        observedDailyUsage != null -> "Daily use (updated): ${formatDailyDistance(observedDailyUsage)} $odometerUnitLabel/day"
-        startingDailyUsage != null -> "Starting daily use: ${formatDailyDistance(startingDailyUsage)} $odometerUnitLabel/day"
-        else -> "Daily use estimate: set a starting value or log dated mileage readings"
+        observedDailyUsage != null -> stringResource(R.string.daily_use_updated, formatDailyDistance(observedDailyUsage), odometerUnitLabel)
+        startingDailyUsage != null -> stringResource(R.string.daily_use_starting, formatDailyDistance(startingDailyUsage), odometerUnitLabel)
+        else -> stringResource(R.string.daily_use_estimate_hint)
     }
     val serviceDistance = latestService?.distanceIntervalOverride
     val manualDistance = specification?.takeIf { it.distanceUnit == vehicle.odometerUnit }?.distanceInterval
@@ -527,20 +572,23 @@ private fun VehicleCard(
     val rawCatalogInterval = catalogSpecification?.serviceNotes.orEmpty().lineSequence()
         .firstOrNull { it.startsWith(rawCatalogPrefix) }
         ?.substringAfter(":")?.trim()
-    val intervalLabel = buildList {
-        displayedDistance?.let { add("${NumberFormat.getIntegerInstance().format(it)} $intervalUnitLabel") }
-        recommendedMonths?.let { add("$it months") }
-    }.joinToString(" · ").ifBlank { rawCatalogInterval ?: "Not set" }
+    val intervalDistanceText = displayedDistance?.let {
+        stringResource(R.string.two_part_format, NumberFormat.getIntegerInstance().format(it), intervalUnitLabel)
+    }
+    val intervalMonthsText = recommendedMonths?.let { stringResource(R.string.months_format, it) }
+    val intervalLabel = listOfNotNull(intervalDistanceText, intervalMonthsText)
+        .joinToString(" · ").ifBlank { rawCatalogInterval ?: stringResource(R.string.not_set) }
     val relyingOnUnverifiedCatalogInterval = serviceDistance == null && manualDistance == null &&
         serviceMonths == null && manualMonths == null && !rawCatalogInterval.isNullOrBlank() &&
         !VehicleCatalogOptions.isOilIntervalVerified(catalogSpecification?.verificationStatus)
+    val oilIntervalText = stringResource(R.string.oil_interval)
     val intervalHeading = when {
-        serviceDistance != null || serviceMonths != null -> "Latest service-record interval"
-        manualDistance != null || manualMonths != null -> "Manual vehicle interval"
-        catalogSpecification?.verificationStatus == "OFFICIAL_INTERVAL_RESEARCHED" -> "${intervalMode.displayName} catalog interval (source found; confirm)"
-        relyingOnUnverifiedCatalogInterval -> "${intervalMode.displayName} catalog interval (unverified)"
-        catalogSpecification?.let { VehicleCatalogOptions.isOilIntervalVerified(it.verificationStatus) } == true -> "${intervalMode.displayName} user-verified interval"
-        else -> "Oil interval"
+        serviceDistance != null || serviceMonths != null -> stringResource(R.string.interval_heading_latest_service)
+        manualDistance != null || manualMonths != null -> stringResource(R.string.interval_heading_manual)
+        catalogSpecification?.verificationStatus == "OFFICIAL_INTERVAL_RESEARCHED" -> stringResource(R.string.interval_heading_catalog_confirm, intervalMode.displayName)
+        relyingOnUnverifiedCatalogInterval -> stringResource(R.string.interval_heading_catalog_unverified, intervalMode.displayName)
+        catalogSpecification?.let { VehicleCatalogOptions.isOilIntervalVerified(it.verificationStatus) } == true -> stringResource(R.string.interval_heading_catalog_verified, intervalMode.displayName)
+        else -> oilIntervalText
     }
     val statusColor = when (schedule?.status) {
         MaintenanceStatus.DUE, MaintenanceStatus.OVERDUE -> MaterialTheme.colorScheme.error
@@ -551,14 +599,20 @@ private fun VehicleCard(
     Card(
         modifier = Modifier.fillMaxWidth().then(
             if (detailMode) Modifier else Modifier.clickable(enabled = !pending, onClick = onOpenDetails)
-        )
+        ).semantics(mergeDescendants = true) { }
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                VehicleTypeIcon(VehicleType.fromStoredValue(vehicle.vehicleType))
+                VehicleTypeIcon(
+                        VehicleType.fromStoredValue(vehicle.vehicleType),
+                        description = stringResource(
+                            R.string.vehicle_type_icon_description,
+                            VehicleType.fromStoredValue(vehicle.vehicleType).label
+                        )
+                    )
                 Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
                     Text(vehicle.nickname?.takeIf(String::isNotBlank) ?: title, style = MaterialTheme.typography.titleLarge)
                     if (!vehicle.nickname.isNullOrBlank()) Text(title, style = MaterialTheme.typography.bodyMedium)
@@ -567,29 +621,29 @@ private fun VehicleCard(
                     IconButton(
                         onClick = { actionsExpanded = true },
                         enabled = !pending,
-                        modifier = Modifier.semantics { contentDescription = "Vehicle actions" }
-                    ) { Text("⋮", style = MaterialTheme.typography.headlineMedium) }
+                        modifier = Modifier.semantics { contentDescription = vehicleActionsCd }
+                    ) { Icon(Icons.Default.MoreVert, contentDescription = null) }
                     DropdownMenu(expanded = actionsExpanded, onDismissRequest = { actionsExpanded = false }) {
                         if (archived) {
                             DropdownMenuItem(
-                                text = { Text("Restore") },
+                                text = { Text(stringResource(R.string.restore)) },
                                 onClick = { actionsExpanded = false; onRestore() },
                                 enabled = !pending
                             )
                         } else {
                             DropdownMenuItem(
-                                text = { Text("Edit vehicle and daily use") },
+                                text = { Text(stringResource(R.string.edit_vehicle_daily_use)) },
                                 onClick = { actionsExpanded = false; onEdit() },
                                 enabled = !pending
                             )
                             DropdownMenuItem(
-                                text = { Text("Archive") },
+                                text = { Text(stringResource(R.string.archive)) },
                                 onClick = { actionsExpanded = false; onArchive() },
                                 enabled = !pending
                             )
                         }
                         DropdownMenuItem(
-                            text = { Text("Delete permanently", color = MaterialTheme.colorScheme.error) },
+                            text = { Text(stringResource(R.string.delete_permanently), color = MaterialTheme.colorScheme.error) },
                             onClick = { actionsExpanded = false; onDelete() },
                             enabled = !pending
                         )
@@ -598,169 +652,203 @@ private fun VehicleCard(
             }
             val odometerLabel = latestReading?.let { reading ->
                 val readingDate = Instant.ofEpochMilli(reading.recordedAtUtc).atZone(ZoneId.systemDefault()).toLocalDate()
-                "${NumberFormat.getIntegerInstance().format(reading.value)} ${if (reading.unit == "MILE") "mi" else "km"} · $readingDate"
-            } ?: "Not recorded"
+                stringResource(
+                    R.string.three_part_dot_format,
+                    NumberFormat.getIntegerInstance().format(reading.value),
+                    stringResource(if (reading.unit == "MILE") R.string.unit_mi else R.string.unit_km),
+                    readingDate.toString()
+                )
+            } ?: stringResource(R.string.not_recorded)
             if (!detailMode) {
                 Text(
-                    "Oil change · ${schedule?.status?.displayLabel() ?: "No service logged"}",
+                    stringResource(
+                        R.string.oil_change_status_format,
+                        schedule?.status?.displayLabel() ?: stringResource(R.string.no_service_logged)
+                    ),
                     color = statusColor,
                     style = MaterialTheme.typography.titleMedium
                 )
                 val remaining = schedule?.distanceRemaining
                 val remainingText = when {
-                    latestService == null -> "Log an oil change"
-                    remaining == null && schedule?.status == MaintenanceStatus.UNAVAILABLE -> "Set an oil interval"
-                    remaining == null && schedule?.nextDueOdometer == null && schedule?.estimatedDueDate != null -> "Time-based interval"
-                    remaining == null -> "Record current mileage"
-                    remaining < 0L -> "${NumberFormat.getIntegerInstance().format(kotlin.math.abs(remaining))} $odometerUnitLabel overdue"
-                    else -> "${NumberFormat.getIntegerInstance().format(remaining)} $odometerUnitLabel remaining"
+                    latestService == null -> stringResource(R.string.log_an_oil_change)
+                    remaining == null && schedule?.status == MaintenanceStatus.UNAVAILABLE -> stringResource(R.string.set_an_oil_interval)
+                    remaining == null && schedule?.nextDueOdometer == null && schedule?.estimatedDueDate != null -> stringResource(R.string.time_based_interval)
+                    remaining == null -> stringResource(R.string.record_current_mileage)
+                    remaining < 0L -> stringResource(R.string.distance_overdue_format, NumberFormat.getIntegerInstance().format(kotlin.math.abs(remaining)), odometerUnitLabel)
+                    else -> stringResource(R.string.distance_remaining_format, NumberFormat.getIntegerInstance().format(remaining), odometerUnitLabel)
                 }
                 Text(remainingText, style = MaterialTheme.typography.headlineMedium, color = statusColor)
                 schedule?.nextDueOdometer?.let { due ->
-                    Text("Next oil change at ${NumberFormat.getIntegerInstance().format(due)} $odometerUnitLabel", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.next_oil_change_at, NumberFormat.getIntegerInstance().format(due), odometerUnitLabel), style = MaterialTheme.typography.bodySmall)
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("ESTIMATED DATE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(schedule?.estimatedDueDate?.toString() ?: "Not available", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.estimated_date_label), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(schedule?.estimatedDueDate?.toString() ?: stringResource(R.string.not_available), style = MaterialTheme.typography.bodySmall)
                     }
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("OIL INTERVAL", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("${intervalMode.displayName}: $intervalLabel", style = MaterialTheme.typography.bodySmall)
-                        if (intervalHeading != "Oil interval") {
+                        Text(stringResource(R.string.oil_interval_label), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.label_value_format, intervalMode.displayName, intervalLabel), style = MaterialTheme.typography.bodySmall)
+                        if (intervalHeading != oilIntervalText) {
                             Text(intervalHeading, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
-                Text("Tap to view vehicle details and service history", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.tap_to_view_details), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 Text(
-                    "Oil change · ${schedule?.status?.displayLabel() ?: "No service logged"}",
+                    stringResource(
+                        R.string.oil_change_status_format,
+                        schedule?.status?.displayLabel() ?: stringResource(R.string.no_service_logged)
+                    ),
                     color = statusColor,
                     style = MaterialTheme.typography.headlineSmall
                 )
-                Text("Oil change interval", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.oil_change_interval), style = MaterialTheme.typography.titleSmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = intervalMode == OilIntervalMode.NORMAL,
                         onClick = { if (!archived) onChangeIntervalMode(OilIntervalMode.NORMAL.storedValue) },
                         enabled = !archived && !pending,
-                        label = { Text("Normal") }
+                        label = { Text(stringResource(R.string.normal)) }
                     )
                     FilterChip(
                         selected = intervalMode == OilIntervalMode.SEVERE,
                         onClick = { if (!archived) onChangeIntervalMode(OilIntervalMode.SEVERE.storedValue) },
                         enabled = !archived && !pending,
-                        label = { Text("Severe / heavy use") }
+                        label = { Text(stringResource(R.string.severe_heavy_use)) }
                     )
                 }
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("DISTANCE REMAINING", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.distance_remaining_label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         val remaining = schedule?.distanceRemaining
                         val remainingText = when {
-                            latestService == null -> "Log an oil change"
-                            remaining == null && schedule?.status == MaintenanceStatus.UNAVAILABLE -> "Set an oil interval"
-                            remaining == null && schedule?.nextDueOdometer == null && schedule?.estimatedDueDate != null -> "Time-based interval"
-                            remaining == null -> "Record current mileage"
-                            remaining < 0L -> "${NumberFormat.getIntegerInstance().format(kotlin.math.abs(remaining))} $odometerUnitLabel overdue"
-                            else -> "${NumberFormat.getIntegerInstance().format(remaining)} $odometerUnitLabel remaining"
+                            latestService == null -> stringResource(R.string.log_an_oil_change)
+                            remaining == null && schedule?.status == MaintenanceStatus.UNAVAILABLE -> stringResource(R.string.set_an_oil_interval)
+                            remaining == null && schedule?.nextDueOdometer == null && schedule?.estimatedDueDate != null -> stringResource(R.string.time_based_interval)
+                            remaining == null -> stringResource(R.string.record_current_mileage)
+                            remaining < 0L -> stringResource(R.string.distance_overdue_format, NumberFormat.getIntegerInstance().format(kotlin.math.abs(remaining)), odometerUnitLabel)
+                            else -> stringResource(R.string.distance_remaining_format, NumberFormat.getIntegerInstance().format(remaining), odometerUnitLabel)
                         }
                         Text(remainingText, style = MaterialTheme.typography.displaySmall, color = statusColor)
                         schedule?.nextDueOdometer?.let { due ->
-                            Text("Next oil change at ${NumberFormat.getIntegerInstance().format(due)} $odometerUnitLabel", style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(R.string.next_oil_change_at, NumberFormat.getIntegerInstance().format(due), odometerUnitLabel), style = MaterialTheme.typography.bodyMedium)
                         }
                         HorizontalDivider()
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text("ESTIMATED DATE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(schedule?.estimatedDueDate?.toString() ?: "Not available", style = MaterialTheme.typography.bodySmall)
+                                Text(stringResource(R.string.estimated_date_label), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(schedule?.estimatedDueDate?.toString() ?: stringResource(R.string.not_available), style = MaterialTheme.typography.bodySmall)
                             }
                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text("OIL INTERVAL", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(stringResource(R.string.oil_interval_label), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text(intervalLabel, style = MaterialTheme.typography.bodySmall)
-                                if (intervalHeading != "Oil interval") {
+                                if (intervalHeading != oilIntervalText) {
                                     Text(intervalHeading, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
                     }
                 }
-                Text("Last odometer: $odometerLabel")
+                Text(stringResource(R.string.last_odometer_format, odometerLabel))
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(dailyUsageLabel, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    if (!archived) TextButton(onClick = onEdit, enabled = !pending) { Text("Edit daily use") }
+                    if (!archived) TextButton(onClick = onEdit, enabled = !pending) { Text(stringResource(R.string.edit_daily_use)) }
                 }
-                Text("Last service: ${latestService?.let { "${it.serviceDate} · ${NumberFormat.getIntegerInstance().format(it.odometerValue)} ${if (it.odometerUnit == "MILE") "mi" else "km"}" } ?: "Not recorded"}")
+                val lastServiceDetail = latestService?.let { service ->
+                    stringResource(
+                        R.string.dot_three_part_format,
+                        service.serviceDate,
+                        NumberFormat.getIntegerInstance().format(service.odometerValue),
+                        stringResource(if (service.odometerUnit == "MILE") R.string.unit_mi else R.string.unit_km)
+                    )
+                } ?: stringResource(R.string.not_recorded)
+                Text(stringResource(R.string.last_service_format, lastServiceDetail))
                 when {
-                    latestService == null -> Text("Log an oil change to start the service schedule.", style = MaterialTheme.typography.bodySmall)
-                    serviceDistance != null || serviceMonths != null -> Text("The interval saved on the latest oil-change record takes priority. Edit that service record to change the active schedule interval.", style = MaterialTheme.typography.bodySmall)
-                    manualDistance != null || manualMonths != null -> Text("Your manually saved vehicle interval takes priority over the ${intervalMode.displayName.lowercase()} catalog interval.", style = MaterialTheme.typography.bodySmall)
-                    intervalMode == OilIntervalMode.SEVERE && catalogSpecification?.let { it.severeDistanceInterval == null && it.severeTimeIntervalMonths == null } == true -> Text("No severe-service interval is present for this catalog entry. The normal interval is not substituted; check the owner's manual or select Normal.", style = MaterialTheme.typography.bodySmall)
-                    schedule?.status == MaintenanceStatus.UNAVAILABLE -> Text("Add a manual interval or open Edit → Modify catalog data, check the cited guide, and mark the selected interval verified before it is used.", style = MaterialTheme.typography.bodySmall)
-                    schedule?.nextDueOdometer != null && schedule.estimatedDueDate == null -> Text("For a date estimate, enter starting daily use or record two increasing odometer readings on different dates.", style = MaterialTheme.typography.bodySmall)
+                    latestService == null -> Text(stringResource(R.string.log_oil_change_to_start), style = MaterialTheme.typography.bodySmall)
+                    serviceDistance != null || serviceMonths != null -> Text(stringResource(R.string.latest_service_interval_priority), style = MaterialTheme.typography.bodySmall)
+                    manualDistance != null || manualMonths != null -> Text(stringResource(R.string.manual_interval_priority, intervalMode.displayName.lowercase()), style = MaterialTheme.typography.bodySmall)
+                    intervalMode == OilIntervalMode.SEVERE && catalogSpecification?.let { it.severeDistanceInterval == null && it.severeTimeIntervalMonths == null } == true -> Text(stringResource(R.string.no_severe_interval_warning), style = MaterialTheme.typography.bodySmall)
+                    schedule?.status == MaintenanceStatus.UNAVAILABLE -> Text(stringResource(R.string.unavailable_interval_hint), style = MaterialTheme.typography.bodySmall)
+                    schedule?.nextDueOdometer != null && schedule.estimatedDueDate == null -> Text(stringResource(R.string.date_estimate_hint), style = MaterialTheme.typography.bodySmall)
                 }
                 if (!archived) {
                     OutlinedButton(onClick = onOpenOdometer, enabled = !pending, modifier = Modifier.fillMaxWidth()) {
-                        Text("Update current mileage")
+                        Text(stringResource(R.string.update_current_mileage))
                     }
                     OutlinedButton(onClick = onOpenSpecifications, enabled = !pending, modifier = Modifier.fillMaxWidth()) {
-                        Text("Edit oil interval and specs")
+                        Text(stringResource(R.string.edit_oil_interval_specs))
                     }
                 }
                 HorizontalDivider()
                 val viscosity = catalogSpecification?.viscosityGrade ?: specification?.viscosityGrade ?: latestService?.viscosityGrade
                 val approval = catalogSpecification?.manufacturerApproval ?: specification?.manufacturerApproval ?: latestService?.manufacturerApproval
                 val filter = catalogSpecification?.oilFilterPartNumber ?: specification?.oilFilterPartNumber ?: latestService?.filterPartNumber
-                Text("Vehicle information", style = MaterialTheme.typography.titleMedium)
-                Text("Fuel type: ${vehicle.fuelType?.takeIf(String::isNotBlank) ?: "Not specified"}")
-                Text("Engine: ${listOfNotNull(vehicle.engine, vehicle.engineCode?.let { "Code $it" }).joinToString(" · ").ifBlank { "Not specified" }}")
-                Text("Transmission: ${vehicle.transmission?.takeIf(String::isNotBlank) ?: "Not specified"}")
-                Text("Recommended oil type: ${viscosity ?: "Not specified"}")
-                Text("Oil approval: ${approval ?: "Not specified"}")
-                Text("Oil filter: ${filter ?: "Not specified"}")
+                Text(stringResource(R.string.vehicle_information), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.fuel_type_format, vehicle.fuelType?.takeIf(String::isNotBlank) ?: stringResource(R.string.not_specified)))
+                val engineText = listOfNotNull(
+                    vehicle.engine,
+                    vehicle.engineCode?.let { stringResource(R.string.engine_code_format, it) }
+                ).joinToString(" · ").ifBlank { stringResource(R.string.not_specified) }
+                Text(stringResource(R.string.engine_format, engineText))
+                Text(stringResource(R.string.transmission_format, vehicle.transmission?.takeIf(String::isNotBlank) ?: stringResource(R.string.not_specified)))
+                Text(stringResource(R.string.recommended_oil_type_format, viscosity ?: stringResource(R.string.not_specified)))
+                Text(stringResource(R.string.oil_approval_format, approval ?: stringResource(R.string.not_specified)))
+                Text(stringResource(R.string.oil_filter_format, filter ?: stringResource(R.string.not_specified)))
                 val capacityMl = catalogSpecification?.capacityWithFilterMl ?: specification?.capacityWithFilterMl
-                Text("Oil capacity with filter: ${capacityMl?.let { "$it mL" } ?: "Not specified"}")
+                Text(stringResource(R.string.oil_capacity_format, capacityMl?.let { stringResource(R.string.milliliters_format, it) } ?: stringResource(R.string.not_specified)))
                 catalogSpecification?.let { catalog ->
+                    val csvOilRecommendation = catalogNoteValue(catalog, "Raw oil recommendation")
+                        ?.let { stringResource(R.string.csv_oil_recommendation_format, it) }
+                    val csvFilterDescription = catalogNoteValue(catalog, "Raw oil filter type/form factor")
+                        ?.let { stringResource(R.string.csv_filter_description_format, it) }
+                    val oilLifeMonitor = catalogNoteValue(catalog, "Uses oil-life monitor")
+                        ?.let { stringResource(R.string.oil_life_monitor_format, it) }
+                    val resetProcedure = catalogNoteValue(catalog, "Oil reset procedure")
+                        ?.let { stringResource(R.string.reset_procedure_format, it) }
+                    val generation = catalogNoteValue(catalog, "Generation code")
+                        ?.let { stringResource(R.string.generation_format, it) }
                     val extraCatalogDetails = listOfNotNull(
-                        catalogNoteValue(catalog, "Raw oil recommendation")?.let { "CSV oil recommendation: $it" },
-                        catalogNoteValue(catalog, "Raw oil filter type/form factor")?.let { "CSV filter description: $it" },
-                        catalogNoteValue(catalog, "Uses oil-life monitor")?.let { "Oil-life monitor: $it" },
-                        catalogNoteValue(catalog, "Oil reset procedure")?.let { "Reset procedure: $it" },
-                        catalogNoteValue(catalog, "Generation code")?.let { "Generation: $it" }
+                        csvOilRecommendation,
+                        csvFilterDescription,
+                        oilLifeMonitor,
+                        resetProcedure,
+                        generation
                     )
                     if (extraCatalogDetails.isNotEmpty()) {
-                        Text("Additional catalog data", style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.additional_catalog_data), style = MaterialTheme.typography.titleSmall)
                         if (!VehicleCatalogOptions.isOilIntervalVerified(catalog.verificationStatus)) {
-                            Text("Unverified catalog suggestions; confirm them against the owner's manual.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.unverified_catalog_warning), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         }
                         extraCatalogDetails.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
                     }
                 }
-                if (!vehicle.vin.isNullOrBlank()) Text("VIN: ${vehicle.vin}")
-                if (!vehicle.licensePlate.isNullOrBlank()) Text("License plate: ${vehicle.licensePlate}")
-                vehicle.notes?.takeIf(String::isNotBlank)?.let { Text("Notes: $it", style = MaterialTheme.typography.bodySmall) }
+                if (!vehicle.vin.isNullOrBlank()) Text(stringResource(R.string.vin_format, vehicle.vin))
+                if (!vehicle.licensePlate.isNullOrBlank()) Text(stringResource(R.string.license_plate_format, vehicle.licensePlate))
+                vehicle.notes?.takeIf(String::isNotBlank)?.let { Text(stringResource(R.string.notes_format, it), style = MaterialTheme.typography.bodySmall) }
                 HorizontalDivider()
                 VehicleDocumentsSection(vehicle, receiptRepository, enabled = !archived && !pending)
                 if (!archived) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = onOpenOilChanges, enabled = !pending, modifier = Modifier.weight(1f)) { Text("Oil changes") }
-                        Button(onClick = onOpenFuel, enabled = !pending, modifier = Modifier.weight(1f)) { Text("Fuel tracking") }
+                        Button(onClick = onOpenOilChanges, enabled = !pending, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.oil_changes)) }
+                        Button(onClick = onOpenFuel, enabled = !pending, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.fuel_tracking)) }
                     }
                 } else {
-                    Text("Archived vehicles are read-only until restored.", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.archived_read_only), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
     }
 }
 
-private fun MaintenanceStatus.displayLabel(): String = when (this) {
-    MaintenanceStatus.UNAVAILABLE -> "Schedule unavailable"
-    MaintenanceStatus.UP_TO_DATE -> "Up to date"
-    MaintenanceStatus.DUE_SOON -> "Due soon"
-    MaintenanceStatus.DUE -> "Due"
-    MaintenanceStatus.OVERDUE -> "Overdue"
+@Composable
+internal fun MaintenanceStatus.displayLabel(): String = when (this) {
+    MaintenanceStatus.UNAVAILABLE -> stringResource(R.string.status_schedule_unavailable)
+    MaintenanceStatus.UP_TO_DATE -> stringResource(R.string.status_up_to_date)
+    MaintenanceStatus.DUE_SOON -> stringResource(R.string.status_due_soon)
+    MaintenanceStatus.DUE -> stringResource(R.string.status_due)
+    MaintenanceStatus.OVERDUE -> stringResource(R.string.status_overdue)
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -776,6 +864,8 @@ private fun VehicleEditorDialog(
     onSave: (VehicleDraft, VehicleEntity?) -> Unit
 ) {
     val context = LocalContext.current
+    val savingVehicleCd = stringResource(R.string.saving_vehicle_cd)
+    val catalogLoadErrorFallback = stringResource(R.string.vehicle_catalog_load_error)
     val measurementSystem = remember { MeasurementSystemPreferences.get(context) }
     val initialDraft = vehicle?.toVehicleDraft() ?: VehicleDraft().copy(odometerUnit = measurementSystem.distanceUnit)
     var nickname by rememberSaveable(vehicle?.id) { mutableStateOf(initialDraft.nickname) }
@@ -815,18 +905,24 @@ private fun VehicleEditorDialog(
 
     LaunchedEffect(vehicle?.id) {
         runCatching { VehicleCatalogSeeder(context.applicationContext, specificationRepository).seedIfMissing() }
-            .onFailure { catalogLoadError = it.message ?: "Vehicle catalog could not be loaded." }
+            .onFailure { catalogLoadError = it.message ?: catalogLoadErrorFallback }
     }
 
-    val yearOptions = VehicleCatalogOptions.modelYears(catalogEntries)
+    val yearOptions = remember(catalogEntries) { VehicleCatalogOptions.modelYears(catalogEntries) }
     val selectedYear = year.toIntOrNull()
-    val manufacturerOptions = selectedYear?.let { VehicleCatalogOptions.makesForYear(catalogEntries, it) }.orEmpty()
-    val modelOptions = if (selectedYear != null && make.isNotBlank()) {
-        VehicleCatalogOptions.modelsForYearAndMake(catalogEntries, selectedYear, make)
-    } else emptyList()
-    val configurationOptions = if (selectedYear != null && make.isNotBlank() && model.isNotBlank()) {
-        VehicleCatalogOptions.configurationsForVehicle(catalogEntries, selectedYear, make, model)
-    } else emptyList()
+    val manufacturerOptions = remember(catalogEntries, selectedYear) {
+        selectedYear?.let { VehicleCatalogOptions.makesForYear(catalogEntries, it) }.orEmpty()
+    }
+    val modelOptions = remember(catalogEntries, selectedYear, make) {
+        if (selectedYear != null && make.isNotBlank()) {
+            VehicleCatalogOptions.modelsForYearAndMake(catalogEntries, selectedYear, make)
+        } else emptyList()
+    }
+    val configurationOptions = remember(catalogEntries, selectedYear, make, model) {
+        if (selectedYear != null && make.isNotBlank() && model.isNotBlank()) {
+            VehicleCatalogOptions.configurationsForVehicle(catalogEntries, selectedYear, make, model)
+        } else emptyList()
+    }
     val selectedSpecification = catalogEntries.firstOrNull { it.id == selectedSpecificationId }
 
     LaunchedEffect(catalogEntries.isNotEmpty(), selectorStateInitialized) {
@@ -911,7 +1007,7 @@ private fun VehicleEditorDialog(
 
     AlertDialog(
         onDismissRequest = requestDismiss,
-        title = { Text(if (vehicle == null) "Add vehicle" else "Edit vehicle") },
+        title = { Text(if (vehicle == null) stringResource(R.string.add_vehicle) else stringResource(R.string.edit_vehicle)) },
         text = {
             BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                 val availableHeight = if (maxHeight == Dp.Infinity) 520.dp else (maxHeight - 64.dp).coerceAtLeast(180.dp)
@@ -922,17 +1018,17 @@ private fun VehicleEditorDialog(
                     errorMessage?.let { error ->
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive })
-                            TextButton(onClick = onSaveErrorDismiss, enabled = !busy) { Text("Dismiss error") }
+                            TextButton(onClick = onSaveErrorDismiss, enabled = !busy) { Text(stringResource(R.string.dismiss_error)) }
                         }
                     }
-                    Text("Vehicle selection", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.vehicle_selection), style = MaterialTheme.typography.titleSmall)
                     if (vehicle == null) Text(
-                        "The production catalog contains 15,886 AI-generated, unverified entries and 66 source-researched interval suggestions. Check the exact year, market, engine, oil type, and filter against the owner's manual. Unverified intervals do not drive the reminder schedule until you confirm them.",
+                        stringResource(R.string.catalog_ai_warning),
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
                     )
                     CatalogDropdownField(
-                        label = "Year",
+                        label = stringResource(R.string.year_label),
                         value = if (yearManual) "" else year,
                         options = yearOptions.map { it.toString() },
                         enabled = !busy,
@@ -951,14 +1047,14 @@ private fun VehicleEditorDialog(
                         OutlinedTextField(
                             value = year,
                             onValueChange = { year = it.filter(Char::isDigit).take(4); clearAfterYearChange() },
-                            label = { Text("Enter model year") }, singleLine = true, enabled = !busy
+                            label = { Text(stringResource(R.string.enter_model_year)) }, singleLine = true, enabled = !busy
                         )
-                        TextButton(onClick = { yearManual = false; year = ""; clearAfterYearChange() }, enabled = !busy) { Text("Choose a listed year") }
+                        TextButton(onClick = { yearManual = false; year = ""; clearAfterYearChange() }, enabled = !busy) { Text(stringResource(R.string.choose_listed_year)) }
                     }
                     catalogLoadError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
 
                     CatalogDropdownField(
-                        label = "Manufacturer",
+                        label = stringResource(R.string.manufacturer_label),
                         value = if (makeManual) "" else make,
                         options = manufacturerOptions,
                         enabled = !busy && selectedYear != null,
@@ -974,12 +1070,12 @@ private fun VehicleEditorDialog(
                         }
                     )
                     if (makeManual) {
-                        OutlinedTextField(value = make, onValueChange = { make = it; clearAfterMakeChange() }, label = { Text("Enter manufacturer") }, singleLine = true, enabled = !busy)
-                        TextButton(onClick = { makeManual = false; make = ""; clearAfterMakeChange() }, enabled = !busy) { Text("Choose a listed manufacturer") }
+                        OutlinedTextField(value = make, onValueChange = { make = it; clearAfterMakeChange() }, label = { Text(stringResource(R.string.enter_manufacturer)) }, singleLine = true, enabled = !busy)
+                        TextButton(onClick = { makeManual = false; make = ""; clearAfterMakeChange() }, enabled = !busy) { Text(stringResource(R.string.choose_listed_manufacturer)) }
                     }
 
                     CatalogDropdownField(
-                        label = "Model",
+                        label = stringResource(R.string.model_label),
                         value = if (modelManual) "" else model,
                         options = modelOptions,
                         enabled = !busy && selectedYear != null && (make.isNotBlank() || makeManual),
@@ -995,11 +1091,11 @@ private fun VehicleEditorDialog(
                         }
                     )
                     if (modelManual) {
-                        OutlinedTextField(value = model, onValueChange = { model = it; clearAfterModelChange() }, label = { Text("Enter model") }, singleLine = true, enabled = !busy)
-                        TextButton(onClick = { modelManual = false; model = ""; clearAfterModelChange() }, enabled = !busy) { Text("Choose a listed model") }
+                        OutlinedTextField(value = model, onValueChange = { model = it; clearAfterModelChange() }, label = { Text(stringResource(R.string.enter_model)) }, singleLine = true, enabled = !busy)
+                        TextButton(onClick = { modelManual = false; model = ""; clearAfterModelChange() }, enabled = !busy) { Text(stringResource(R.string.choose_listed_model)) }
                     }
 
-                    Text("Engine / configuration", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.engine_configuration_label), style = MaterialTheme.typography.labelLarge)
                     CatalogConfigurationDropdown(
                         value = if (engineManual) "" else selectedSpecification?.let {
                             configurationLabel(it.copy(engine = engine.ifBlank { it.engine.orEmpty() }), odometerUnit)
@@ -1016,34 +1112,35 @@ private fun VehicleEditorDialog(
                         }
                     )
                     if (engineManual) {
-                        OutlinedTextField(value = engine, onValueChange = { engine = it; selectedSpecificationId = null }, label = { Text("Enter engine / configuration") }, singleLine = true, enabled = !busy)
-                        TextButton(onClick = { engineManual = false; engine = "" }, enabled = !busy) { Text("Choose a catalog configuration") }
+                        OutlinedTextField(value = engine, onValueChange = { engine = it; selectedSpecificationId = null }, label = { Text(stringResource(R.string.enter_engine_configuration)) }, singleLine = true, enabled = !busy)
+                        TextButton(onClick = { engineManual = false; engine = "" }, enabled = !busy) { Text(stringResource(R.string.choose_catalog_configuration)) }
                     }
                     if (selectedSpecification != null) {
-                        val intervalUnit = if (odometerUnit == "MILE") "mi" else "km"
-                        val interval = listOfNotNull(
-                            selectedSpecification.distanceInterval?.let { distance ->
-                                convertDistanceIntervalToUnit(distance, selectedSpecification.distanceUnit, odometerUnit)?.let { "$it $intervalUnit" }
-                            },
-                            selectedSpecification.timeIntervalMonths?.let { "$it months" }
-                        ).joinToString(" · ").ifBlank { rawIntervalText(selectedSpecification) ?: "Not specified" }
+                        val intervalUnit = stringResource(if (odometerUnit == "MILE") R.string.unit_mi else R.string.unit_km)
+                        val intervalDistance = selectedSpecification.distanceInterval?.let { distance ->
+                            convertDistanceIntervalToUnit(distance, selectedSpecification.distanceUnit, odometerUnit)
+                        }?.let { stringResource(R.string.two_part_format, it, intervalUnit) }
+                        val intervalMonths = selectedSpecification.timeIntervalMonths
+                            ?.let { stringResource(R.string.months_format, it) }
+                        val interval = listOfNotNull(intervalDistance, intervalMonths)
+                            .joinToString(" · ").ifBlank { rawIntervalText(selectedSpecification) ?: stringResource(R.string.not_specified) }
                         val intervalSourceLabel = when (selectedSpecification.verificationStatus) {
-                            "USER_VERIFIED" -> "user-marked verified"
-                            "OFFICIAL_INTERVAL_RESEARCHED" -> "official interval source found; confirm to use"
-                            else -> "unverified"
+                            "USER_VERIFIED" -> stringResource(R.string.interval_source_user_verified)
+                            "OFFICIAL_INTERVAL_RESEARCHED" -> stringResource(R.string.interval_source_official)
+                            else -> stringResource(R.string.unverified)
                         }
-                        Text("Imported oil interval: $interval · $intervalSourceLabel", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.imported_oil_interval_format, interval, intervalSourceLabel), style = MaterialTheme.typography.bodySmall)
                         if (!VehicleCatalogOptions.isOilIntervalVerified(selectedSpecification.verificationStatus)) {
-                            Text("The interval is linked to this vehicle but will not calculate reminders until verified.", style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.interval_not_verified_warning), style = MaterialTheme.typography.bodySmall)
                         }
                     }
-                    TextButton(onClick = { engineManual = true; engine = ""; trim = ""; selectedSpecificationId = null }, enabled = !busy) { Text("Enter engine / configuration manually") }
+                    TextButton(onClick = { engineManual = true; engine = ""; trim = ""; selectedSpecificationId = null }, enabled = !busy) { Text(stringResource(R.string.enter_engine_configuration_manually)) }
 
-                    TextButton(onClick = { showCatalogManager = true }, enabled = !busy) { Text("Modify catalog data") }
+                    TextButton(onClick = { showCatalogManager = true }, enabled = !busy) { Text(stringResource(R.string.modify_catalog_data)) }
                     HorizontalDivider()
-                    Text("Vehicle details", style = MaterialTheme.typography.titleSmall)
-                    OutlinedTextField(value = nickname, onValueChange = { nickname = it }, label = { Text("Nickname (optional)") }, singleLine = true, enabled = !busy)
-                    Text("Vehicle icon", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.vehicle_details_title), style = MaterialTheme.typography.titleSmall)
+                    OutlinedTextField(value = nickname, onValueChange = { nickname = it }, label = { Text(stringResource(R.string.nickname_optional)) }, singleLine = true, enabled = !busy)
+                    Text(stringResource(R.string.vehicle_icon), style = MaterialTheme.typography.labelLarge)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(VehicleType.entries, key = { it.storedValue }) { type ->
                             FilterChip(
@@ -1051,30 +1148,30 @@ private fun VehicleEditorDialog(
                                 onClick = { vehicleType = type.storedValue },
                                 enabled = !busy,
                                 label = { Text(type.label) },
-                                leadingIcon = { VehicleTypeIcon(type, iconSize = 24.dp) }
+                                leadingIcon = { VehicleTypeIcon(type, iconSize = 24.dp, description = null) }
                             )
                         }
                     }
-                    Text("Choose the body style icon shown on this vehicle's garage card.", style = MaterialTheme.typography.bodySmall)
-                    Text("Odometer units", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.vehicle_icon_hint), style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.odometer_units), style = MaterialTheme.typography.labelMedium)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(selected = odometerUnit == "KM", onClick = { setOdometerUnit("KM") }, label = { Text("Kilometres (km)") }, enabled = !busy)
-                        FilterChip(selected = odometerUnit == "MILE", onClick = { setOdometerUnit("MILE") }, label = { Text("Miles (mi)") }, enabled = !busy)
+                        FilterChip(selected = odometerUnit == "KM", onClick = { setOdometerUnit("KM") }, label = { Text(stringResource(R.string.kilometres)) }, enabled = !busy)
+                        FilterChip(selected = odometerUnit == "MILE", onClick = { setOdometerUnit("MILE") }, label = { Text(stringResource(R.string.miles)) }, enabled = !busy)
                     }
                     OutlinedTextField(
                         value = startingDailyUsage,
                         onValueChange = { startingDailyUsage = normalizeDecimalInput(it) },
-                        label = { Text("Starting daily use (${if (odometerUnit == "MILE") "mi" else "km"}/day, optional)") },
-                        supportingText = { Text("Used until dated odometer readings provide an actual average; that estimate updates as you log mileage.") },
+                        label = { Text(stringResource(R.string.starting_daily_use_label, stringResource(if (odometerUnit == "MILE") R.string.unit_mi else R.string.unit_km))) },
+                        supportingText = { Text(stringResource(R.string.starting_daily_use_hint)) },
                         singleLine = true,
                         enabled = !busy
                     )
-                    OutlinedTextField(value = engineCode, onValueChange = { engineCode = it }, label = { Text("Engine code (optional)") }, singleLine = true, enabled = !busy)
-                    OutlinedTextField(value = fuelType, onValueChange = { fuelType = it }, label = { Text("Fuel type (optional)") }, singleLine = true, enabled = !busy)
-                    OutlinedTextField(value = transmission, onValueChange = { transmission = it }, label = { Text("Transmission (optional)") }, singleLine = true, enabled = !busy)
-                    OutlinedTextField(value = vin, onValueChange = { vin = it.uppercase().take(17) }, label = { Text("VIN (optional)") }, singleLine = true, enabled = !busy)
-                    OutlinedTextField(value = plate, onValueChange = { plate = it.uppercase().take(16) }, label = { Text("License plate (optional)") }, singleLine = true, enabled = !busy)
-                    OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notes") }, minLines = 2, enabled = !busy)
+                    OutlinedTextField(value = engineCode, onValueChange = { engineCode = it }, label = { Text(stringResource(R.string.engine_code_optional)) }, singleLine = true, enabled = !busy)
+                    OutlinedTextField(value = fuelType, onValueChange = { fuelType = it }, label = { Text(stringResource(R.string.fuel_type_optional)) }, singleLine = true, enabled = !busy)
+                    OutlinedTextField(value = transmission, onValueChange = { transmission = it }, label = { Text(stringResource(R.string.transmission_optional)) }, singleLine = true, enabled = !busy)
+                    OutlinedTextField(value = vin, onValueChange = { vin = it.uppercase().take(17) }, label = { Text(stringResource(R.string.vin_optional)) }, singleLine = true, enabled = !busy)
+                    OutlinedTextField(value = plate, onValueChange = { plate = it.uppercase().take(16) }, label = { Text(stringResource(R.string.license_plate_optional)) }, singleLine = true, enabled = !busy)
+                    OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text(stringResource(R.string.notes_label)) }, minLines = 2, enabled = !busy)
                 }
             }
         },
@@ -1085,20 +1182,20 @@ private fun VehicleEditorDialog(
                     !yearOutOfCatalogRange && !catalogSelectionMismatch
             ) {
                 if (busy) {
-                    CircularProgressIndicator(Modifier.semantics { contentDescription = "Saving vehicle" })
-                    Text("Saving…", modifier = Modifier.padding(start = 8.dp))
-                } else Text("Save")
+                    CircularProgressIndicator(Modifier.semantics { contentDescription = savingVehicleCd })
+                    Text(stringResource(R.string.saving_ellipsis), modifier = Modifier.padding(start = 8.dp))
+                } else Text(stringResource(R.string.save))
             }
         },
-        dismissButton = { TextButton(onClick = requestDismiss, enabled = !busy) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = requestDismiss, enabled = !busy) { Text(stringResource(R.string.cancel)) } }
     )
     if (discardConfirmation) {
         AlertDialog(
             onDismissRequest = { discardConfirmation = false },
-            title = { Text("Discard changes?") },
-            text = { Text("Your unsaved vehicle changes will be lost.") },
-            confirmButton = { TextButton(onClick = { discardConfirmation = false; onDismiss() }) { Text("Discard") } },
-            dismissButton = { TextButton(onClick = { discardConfirmation = false }) { Text("Keep editing") } }
+            title = { Text(stringResource(R.string.discard_changes_title)) },
+            text = { Text(stringResource(R.string.discard_changes_message)) },
+            confirmButton = { TextButton(onClick = { discardConfirmation = false; onDismiss() }) { Text(stringResource(R.string.discard)) } },
+            dismissButton = { TextButton(onClick = { discardConfirmation = false }) { Text(stringResource(R.string.keep_editing)) } }
         )
     }
     if (showCatalogManager) {
@@ -1114,26 +1211,26 @@ private fun VehicleEditorDialog(
         if (entry != null) {
             AlertDialog(
                 onDismissRequest = { pendingAISelectionId = null },
-                title = { Text("Double-check this catalog data") },
+                title = { Text(stringResource(R.string.double_check_catalog_title)) },
                 text = {
                     Text(
-                        "This vehicle entry is AI-generated and unverified. Before relying on its oil recommendation or intervals, confirm the exact year, market, engine, and maintenance schedule in the owner's manual. It will not drive the reminder schedule until you verify the interval in Modify catalog data."
+                        stringResource(R.string.double_check_catalog_message)
                     )
                 },
                 confirmButton = {
                     TextButton(onClick = { pendingAISelectionId = null; applyCatalogSelection(entry) }) {
-                        Text("Select unverified data")
+                        Text(stringResource(R.string.select_unverified_data))
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { pendingAISelectionId = null }) { Text("Cancel") }
+                    TextButton(onClick = { pendingAISelectionId = null }) { Text(stringResource(R.string.cancel)) }
                 }
             )
         }
     }
 }
 
-private const val OTHER_CATALOG_OPTION = "Other — enter manually"
+private const val OTHER_CATALOG_OPTION = "__other_enter_manually__"
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -1152,7 +1249,7 @@ private fun CatalogDropdownField(
             readOnly = true,
             enabled = enabled,
             label = { Text(label) },
-            placeholder = { Text("Select $label") },
+            placeholder = { Text(stringResource(R.string.select_label_format, label)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = enabled).fillMaxWidth()
         )
@@ -1160,7 +1257,7 @@ private fun CatalogDropdownField(
             options.forEach { option ->
                 DropdownMenuItem(text = { Text(option) }, onClick = { expanded = false; onSelect(option) })
             }
-            DropdownMenuItem(text = { Text(OTHER_CATALOG_OPTION) }, onClick = { expanded = false; onSelect(OTHER_CATALOG_OPTION) })
+            DropdownMenuItem(text = { Text(stringResource(R.string.other_enter_manually)) }, onClick = { expanded = false; onSelect(OTHER_CATALOG_OPTION) })
         }
     }
 }
@@ -1181,8 +1278,8 @@ private fun CatalogConfigurationDropdown(
             onValueChange = {},
             readOnly = true,
             enabled = enabled,
-            label = { Text("Engine / configuration (as supplied)") },
-            placeholder = { Text("Select an engine configuration") },
+            label = { Text(stringResource(R.string.engine_configuration_as_supplied)) },
+            placeholder = { Text(stringResource(R.string.select_engine_configuration)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = enabled).fillMaxWidth()
         )
@@ -1194,31 +1291,33 @@ private fun CatalogConfigurationDropdown(
                 )
             }
             DropdownMenuItem(
-                text = { Text(OTHER_CATALOG_OPTION) },
+                text = { Text(stringResource(R.string.other_enter_manually)) },
                 onClick = { expanded = false; onSelect(null) }
             )
         }
     }
 }
 
+@Composable
 private fun configurationLabel(entry: VehicleSpecificationEntity, targetDistanceUnit: String): String {
-    val unitLabel = if (targetDistanceUnit == "MILE") "mi" else "km"
-    val interval = listOfNotNull(
-        entry.distanceInterval?.let { distance ->
-            convertDistanceIntervalToUnit(distance, entry.distanceUnit, targetDistanceUnit)?.let { "$it $unitLabel" }
-        },
-        entry.timeIntervalMonths?.let { "$it months" }
-    ).joinToString(" · ").ifBlank { VehicleCatalogOptions.rawNormalInterval(entry) }
+    val unitLabel = stringResource(if (targetDistanceUnit == "MILE") R.string.unit_mi else R.string.unit_km)
+    val intervalDistance = entry.distanceInterval?.let { distance ->
+        convertDistanceIntervalToUnit(distance, entry.distanceUnit, targetDistanceUnit)
+    }?.let { stringResource(R.string.two_part_format, it, unitLabel) }
+    val intervalMonths = entry.timeIntervalMonths?.let { stringResource(R.string.months_format, it) }
+    val interval = listOfNotNull(intervalDistance, intervalMonths)
+        .joinToString(" · ").ifBlank { VehicleCatalogOptions.rawNormalInterval(entry) }
+    val verificationLabel = when (entry.verificationStatus) {
+        "USER_VERIFIED" -> stringResource(R.string.user_verified)
+        "OFFICIAL_INTERVAL_RESEARCHED" -> stringResource(R.string.oem_source_found)
+        else -> stringResource(R.string.unverified)
+    }
     return listOfNotNull(
         entry.engine?.takeIf(String::isNotBlank),
         VehicleCatalogOptions.marketRegion(entry),
-        interval?.let { "Oil interval: $it" },
-        when (entry.verificationStatus) {
-            "USER_VERIFIED" -> "User verified"
-            "OFFICIAL_INTERVAL_RESEARCHED" -> "OEM source found · confirm to use"
-            else -> "Unverified"
-        }
-    ).joinToString(" · ").ifBlank { "Engine/configuration not specified" }
+        interval?.let { stringResource(R.string.oil_interval_format, it) },
+        verificationLabel
+    ).joinToString(" · ").ifBlank { stringResource(R.string.engine_configuration_not_specified) }
 }
 
 private fun normalizeDecimalInput(value: String): String {

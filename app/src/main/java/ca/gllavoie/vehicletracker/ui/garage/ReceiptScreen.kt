@@ -30,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import ca.gllavoie.vehicletracker.R
 import ca.gllavoie.vehicletracker.data.local.ReceiptAttachmentEntity
 import ca.gllavoie.vehicletracker.data.repository.ReceiptRepository
 import java.io.IOException
@@ -72,7 +74,7 @@ fun ReceiptRoute(
                         receiptRepository.addForOilChange(vehicleId, serviceId, uri, name)
                     }
                 } catch (failure: Exception) {
-                    error = failure.message ?: "Unable to add receipt."
+                    error = failure.message ?: context.getString(R.string.unable_to_add_receipt)
                 } finally {
                     busy = false
                 }
@@ -89,11 +91,11 @@ fun ReceiptRoute(
                     val source = receiptRepository.getVerifiedFile(attachment.id)
                     withContext(Dispatchers.IO) {
                         val output = context.contentResolver.openOutputStream(targetUri)
-                            ?: throw IOException("The selected download location could not be opened.")
+                            ?: throw IOException(context.getString(R.string.download_open_error))
                         output.use { out -> source.inputStream().use { input -> input.copyTo(out) } }
                     }
                 } catch (failure: Exception) {
-                    error = failure.message ?: "Unable to download receipt."
+                    error = failure.message ?: context.getString(R.string.unable_to_download_receipt)
                 } finally {
                     busy = false
                     pendingDownload = null
@@ -102,20 +104,21 @@ fun ReceiptRoute(
         }
     }
 
+    val processingReceiptsCd = stringResource(R.string.processing_receipts_cd)
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
-        title = { Text("Receipts") },
+        title = { Text(stringResource(R.string.receipts)) },
         text = {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val availableHeight = if (maxHeight == Dp.Infinity) 400.dp else (maxHeight - 64.dp).coerceAtLeast(180.dp)
                 Column(modifier = Modifier.fillMaxWidth().heightIn(max = availableHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("PDF, JPG and PNG · up to 10 MB each · stored privately on this device.")
-                    Button(onClick = { openDocuments.launch(arrayOf("application/pdf", "image/jpeg", "image/png")) }, enabled = !busy) {
-                        if (busy) CircularProgressIndicator(Modifier.semantics { contentDescription = "Processing receipts" }) else Text("Add receipt")
+                    Text(stringResource(R.string.receipts_hint))
+                    Button(onClick = { openDocuments.launch(arrayOf("application/pdf", "image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif", "image/avif")) }, enabled = !busy) {
+                        if (busy) CircularProgressIndicator(Modifier.semantics { contentDescription = processingReceiptsCd }) else Text(stringResource(R.string.add_receipt))
                     }
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive }) }
                     HorizontalDivider()
-                    if (attachments.isEmpty()) Text("No receipts attached to this service.")
+                    if (attachments.isEmpty()) Text(stringResource(R.string.no_receipts_attached))
                     attachments.forEach { attachment ->
                         ReceiptRow(
                             attachment = attachment,
@@ -126,9 +129,9 @@ fun ReceiptRoute(
                                         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
                                         context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, attachment.mimeType).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
                                     } catch (failure: ActivityNotFoundException) {
-                                        error = "No application is available to preview this file. Use Download instead."
+                                        error = context.getString(R.string.no_preview_app)
                                     } catch (failure: Exception) {
-                                        error = failure.message ?: "Unable to open receipt."
+                                        error = failure.message ?: context.getString(R.string.unable_to_open_receipt)
                                     }
                                 }
                             },
@@ -139,14 +142,14 @@ fun ReceiptRoute(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("Done") } }
+        confirmButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.done)) } }
     )
 
     deleteTarget?.let { target ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
-            title = { Text("Remove receipt?") },
-            text = { Text("${target.originalFileName} will be removed. The oil change and its other receipts will remain.") },
+            title = { Text(stringResource(R.string.remove_receipt_title)) },
+            text = { Text(stringResource(R.string.remove_receipt_message, target.originalFileName)) },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
@@ -156,14 +159,14 @@ fun ReceiptRoute(
                             receiptRepository.delete(target.id)
                             deleteTarget = null
                         } catch (failure: Exception) {
-                            error = failure.message ?: "Unable to remove receipt."
+                            error = failure.message ?: context.getString(R.string.unable_to_remove_receipt)
                         } finally {
                             busy = false
                         }
                     }
-                }, enabled = !busy) { Text("Remove") }
+                }, enabled = !busy) { Text(stringResource(R.string.remove)) }
             },
-            dismissButton = { TextButton(onClick = { deleteTarget = null }, enabled = !busy) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { deleteTarget = null }, enabled = !busy) { Text(stringResource(R.string.cancel)) } }
         )
     }
 }
@@ -177,11 +180,11 @@ private fun ReceiptRow(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(attachment.originalFileName, style = MaterialTheme.typography.bodyLarge)
-        Text("${attachment.mimeType} · ${attachment.sizeBytes} bytes · ${DateFormat.getDateTimeInstance().format(Date(attachment.addedAtUtc))}", style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.attachment_info_format, attachment.mimeType, stringResource(R.string.bytes_unit, attachment.sizeBytes), DateFormat.getDateTimeInstance().format(Date(attachment.addedAtUtc))), style = MaterialTheme.typography.bodySmall)
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            TextButton(onClick = onPreview) { Text("Preview") }
-            TextButton(onClick = onDownload) { Text("Download") }
-            TextButton(onClick = onDelete) { Text("Remove") }
+            TextButton(onClick = onPreview) { Text(stringResource(R.string.preview)) }
+            TextButton(onClick = onDownload) { Text(stringResource(R.string.download)) }
+            TextButton(onClick = onDelete) { Text(stringResource(R.string.remove)) }
         }
         HorizontalDivider()
     }
@@ -189,6 +192,6 @@ private fun ReceiptRow(
 
 private fun queryDisplayName(context: android.content.Context, uri: android.net.Uri): String {
     val cursor = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
-    cursor?.use { if (it.moveToFirst()) return it.getString(0).orEmpty().ifBlank { "receipt" } }
-    return uri.lastPathSegment?.substringAfterLast('/')?.ifBlank { "receipt" } ?: "receipt"
+    cursor?.use { if (it.moveToFirst()) return it.getString(0).orEmpty().ifBlank { context.getString(R.string.receipt_fallback_name) } }
+    return uri.lastPathSegment?.substringAfterLast('/')?.ifBlank { context.getString(R.string.receipt_fallback_name) } ?: context.getString(R.string.receipt_fallback_name)
 }

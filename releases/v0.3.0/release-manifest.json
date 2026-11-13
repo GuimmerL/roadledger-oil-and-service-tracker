@@ -1,0 +1,18 @@
+{
+  "applicationId": "ca.gllavoie.vehicletracker",
+  "versionName": "0.3.0",
+  "versionCode": 3,
+  "buildType": "debug",
+  "signing": "debug key; not production-signed",
+  "createdUtc": "2026-10-26T22:15:25+00:00",
+  "artifacts": {
+    "Vehicle_Tracker_v0.3.0_debug.apk": {
+      "bytes": 11896043,
+      "sha256": "177359040a7f43c62efdcfbb281d54cad31f68468806ba10dc792b10da2b1980"
+    },
+    "Vehicle_Tracker_v0.3.0_Source_Code.zip": {
+      "bytes": 244047,
+      "sha256": "a62f353a833b8eca278b1d655a8f8ef5a3b3320580fbb51b957eeab4a1c47755"
+    }
+  }
+}

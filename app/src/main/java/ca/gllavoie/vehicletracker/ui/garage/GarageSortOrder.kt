@@ -1,13 +1,15 @@
 package ca.gllavoie.vehicletracker.ui.garage
 
+import androidx.annotation.StringRes
+import ca.gllavoie.vehicletracker.R
 import ca.gllavoie.vehicletracker.data.local.VehicleEntity
 
 /** Presentation-only garage ordering; vehicle records and their saved values are unchanged. */
-enum class GarageSortOrder(val label: String) {
-    NAME("Name (A–Z)"),
-    YEAR_NEWEST("Model year (newest)"),
-    YEAR_OLDEST("Model year (oldest)"),
-    RECENTLY_ADDED("Recently added");
+enum class GarageSortOrder(@StringRes val labelRes: Int) {
+    NAME(R.string.sort_name_az),
+    YEAR_NEWEST(R.string.sort_year_newest),
+    YEAR_OLDEST(R.string.sort_year_oldest),
+    RECENTLY_ADDED(R.string.sort_recently_added);
 
     fun sort(vehicles: List<VehicleEntity>): List<VehicleEntity> = when (this) {
         NAME -> vehicles.sortedWith(nameComparator)

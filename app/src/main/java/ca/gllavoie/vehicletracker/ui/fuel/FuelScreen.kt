@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -40,11 +41,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import ca.gllavoie.vehicletracker.R
 import ca.gllavoie.vehicletracker.data.local.FuelFillUpEntity
 import ca.gllavoie.vehicletracker.data.local.VehicleEntity
 import ca.gllavoie.vehicletracker.data.repository.FuelRepository
 import ca.gllavoie.vehicletracker.data.repository.VehicleRepository
 import ca.gllavoie.vehicletracker.domain.calculation.DistanceUnit
+import ca.gllavoie.vehicletracker.ui.common.DateTextField
 import ca.gllavoie.vehicletracker.domain.calculation.EconomyUnit
 import ca.gllavoie.vehicletracker.domain.calculation.FillUp
 import ca.gllavoie.vehicletracker.domain.calculation.VolumeUnit
@@ -79,8 +82,8 @@ fun FuelTrackingDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Fuel tracking", style = MaterialTheme.typography.titleLarge)
-                    TextButton(onClick = onDismiss) { Text("Done") }
+                    Text(stringResource(R.string.fuel_tracking), style = MaterialTheme.typography.titleLarge)
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) }
                 }
                 FuelScreen(
                     state = state,
@@ -96,16 +99,16 @@ fun FuelTrackingDialog(
 
 @Composable
 fun FuelRoute(vehicleRepository: VehicleRepository, fuelRepository: FuelRepository) {
-    val vehicles by vehicleRepository.observeActiveVehicles().collectAsStateWithLifecycle(emptyList())
+    val vehicles by remember(vehicleRepository) { vehicleRepository.observeActiveVehicles() }.collectAsStateWithLifecycle(emptyList())
     var selectedVehicleId by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(vehicles) {
         if (vehicles.none { it.id == selectedVehicleId }) selectedVehicleId = vehicles.firstOrNull()?.id
     }
     val vehicle = vehicles.firstOrNull { it.id == selectedVehicleId }
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Fuel economy", style = MaterialTheme.typography.headlineMedium)
+        Text(stringResource(R.string.fuel_economy), style = MaterialTheme.typography.headlineMedium)
         if (vehicle == null) {
-            Text("Add an active vehicle in My Garage to record fuel purchases.")
+            Text(stringResource(R.string.add_active_vehicle_hint))
         } else {
             VehiclePicker(vehicles, vehicle, onSelect = { selectedVehicleId = it.id })
             val fuelViewModel: FuelViewModel = viewModel(
@@ -128,12 +131,17 @@ fun FuelRoute(vehicleRepository: VehicleRepository, fuelRepository: FuelReposito
 private fun VehiclePicker(vehicles: List<VehicleEntity>, selected: VehicleEntity, onSelect: (VehicleEntity) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     TextButton(onClick = { expanded = true }) {
-        Text("Vehicle: ${selected.nickname?.takeIf(String::isNotBlank) ?: "${selected.make} ${selected.model}"} ▾")
+        Text(stringResource(R.string.vehicle_picker_format, selected.nickname?.takeIf(String::isNotBlank) ?: stringResource(R.string.two_part_format, selected.make, selected.model)))
     }
     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
         vehicles.forEach { vehicle ->
             DropdownMenuItem(
-                text = { Text(vehicle.nickname?.takeIf(String::isNotBlank) ?: "${vehicle.modelYear?.toString()?.plus(" ") ?: ""}${vehicle.make} ${vehicle.model}") },
+                text = {
+                    Text(
+                        vehicle.nickname?.takeIf(String::isNotBlank)
+                            ?: stringResource(R.string.vehicle_name_with_year_format, vehicle.modelYear?.toString()?.plus(" ") ?: "", vehicle.make, vehicle.model)
+                    )
+                },
                 onClick = { expanded = false; onSelect(vehicle) }
             )
         }
@@ -149,6 +157,8 @@ private fun FuelScreen(
     onClearError: () -> Unit
 ) {
     val vehicle = state.vehicle
+    val loadingVehicleCd = stringResource(R.string.loading_vehicle)
+    val savingFuelFillUpCd = stringResource(R.string.saving_fuel_fill_up_cd)
     val today = rememberSaveable { LocalDate.now().toString() }
     var date by rememberSaveable(vehicle?.id) { mutableStateOf(today) }
     var odometer by rememberSaveable(vehicle?.id) { mutableStateOf("") }
@@ -174,7 +184,11 @@ private fun FuelScreen(
         }
     }
     if (vehicle == null) {
-        CircularProgressIndicator(Modifier.semantics { contentDescription = "Loading vehicle" })
+        if (state.isLoading) {
+            CircularProgressIndicator(Modifier.semantics { contentDescription = loadingVehicleCd })
+        } else {
+            Text(stringResource(R.string.vehicle_no_longer_available), style = MaterialTheme.typography.bodyMedium)
+        }
         return
     }
     val economyUnit = runCatching { EconomyUnit.valueOf(economyUnitName) }.getOrDefault(EconomyUnit.L_PER_100_KM)
@@ -197,41 +211,41 @@ private fun FuelScreen(
         modifier = Modifier.fillMaxWidth().heightIn(max = 640.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text("${vehicle.make} ${vehicle.model} · ${if (vehicle.odometerUnit == "MILE") "mi" else "km"}", style = MaterialTheme.typography.titleMedium)
-        Text("Record each fill-up at the pump. Fuel economy is shown only for intervals bounded by full-tank readings.", style = MaterialTheme.typography.bodySmall)
-        Text("Add fill-up", style = MaterialTheme.typography.titleLarge)
-        OutlinedTextField(value = date, onValueChange = { date = it.take(10) }, label = { Text("Date (YYYY-MM-DD)") }, singleLine = true, enabled = !state.isSaving)
-        OutlinedTextField(value = odometer, onValueChange = { odometer = it.filter(Char::isDigit) }, label = { Text("Odometer (${if (vehicle.odometerUnit == "MILE") "mi" else "km"})") }, singleLine = true, enabled = !state.isSaving)
-        OutlinedTextField(value = volume, onValueChange = { volume = it.filter { char -> char.isDigit() || char == '.' } }, label = { Text("Fuel volume (${volumeUnitLabel(volumeUnit)})") }, singleLine = true, enabled = !state.isSaving)
+        Text(stringResource(R.string.three_part_dot_format, vehicle.make, vehicle.model, stringResource(if (vehicle.odometerUnit == "MILE") R.string.unit_mi else R.string.unit_km)), style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.fuel_record_hint), style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.add_fill_up), style = MaterialTheme.typography.titleLarge)
+        DateTextField(value = date, onValueChange = { date = it }, label = stringResource(R.string.date_ymd_label), enabled = !state.isSaving)
+        OutlinedTextField(value = odometer, onValueChange = { odometer = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.odometer_label, stringResource(if (vehicle.odometerUnit == "MILE") R.string.unit_mi else R.string.unit_km))) }, singleLine = true, enabled = !state.isSaving)
+        OutlinedTextField(value = volume, onValueChange = { volume = it.filter { char -> char.isDigit() || char == '.' } }, label = { Text(stringResource(R.string.fuel_volume_label, volumeUnitLabel(volumeUnit))) }, singleLine = true, enabled = !state.isSaving)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            FilterChip(selected = volumeUnit == "L", onClick = { volumeUnit = "L" }, label = { Text("L") }, enabled = !state.isSaving)
-            FilterChip(selected = volumeUnit == "US_GAL", onClick = { volumeUnit = "US_GAL" }, label = { Text("US gal") }, enabled = !state.isSaving)
-            FilterChip(selected = volumeUnit == "IMP_GAL", onClick = { volumeUnit = "IMP_GAL" }, label = { Text("Imp gal") }, enabled = !state.isSaving)
+            FilterChip(selected = volumeUnit == "L", onClick = { volumeUnit = "L" }, label = { Text(stringResource(R.string.unit_litre)) }, enabled = !state.isSaving)
+            FilterChip(selected = volumeUnit == "US_GAL", onClick = { volumeUnit = "US_GAL" }, label = { Text(stringResource(R.string.unit_us_gal)) }, enabled = !state.isSaving)
+            FilterChip(selected = volumeUnit == "IMP_GAL", onClick = { volumeUnit = "IMP_GAL" }, label = { Text(stringResource(R.string.unit_imp_gal)) }, enabled = !state.isSaving)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(value = cost, onValueChange = { cost = it.filter { char -> char.isDigit() || char == '.' } }, label = { Text("Cost") }, singleLine = true, enabled = !state.isSaving, modifier = Modifier.weight(1f))
-            OutlinedTextField(value = currency, onValueChange = { currency = it.uppercase().take(3) }, label = { Text("Currency") }, singleLine = true, enabled = !state.isSaving, modifier = Modifier.weight(1f))
+            OutlinedTextField(value = cost, onValueChange = { cost = it.filter { char -> char.isDigit() || char == '.' } }, label = { Text(stringResource(R.string.cost_label)) }, singleLine = true, enabled = !state.isSaving, modifier = Modifier.weight(1f))
+            OutlinedTextField(value = currency, onValueChange = { currency = it.uppercase().take(3) }, label = { Text(stringResource(R.string.currency_label)) }, singleLine = true, enabled = !state.isSaving, modifier = Modifier.weight(1f))
         }
-        OutlinedTextField(value = fuelType, onValueChange = { fuelType = it }, label = { Text("Fuel type") }, singleLine = true, enabled = !state.isSaving)
-        OutlinedTextField(value = station, onValueChange = { station = it }, label = { Text("Station") }, singleLine = true, enabled = !state.isSaving)
+        OutlinedTextField(value = fuelType, onValueChange = { fuelType = it }, label = { Text(stringResource(R.string.fuel_type_label)) }, singleLine = true, enabled = !state.isSaving)
+        OutlinedTextField(value = station, onValueChange = { station = it }, label = { Text(stringResource(R.string.station_label)) }, singleLine = true, enabled = !state.isSaving)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Full tank", modifier = Modifier.padding(top = 12.dp))
+            Text(stringResource(R.string.full_tank), modifier = Modifier.padding(top = 12.dp))
             Switch(checked = isFullTank, onCheckedChange = { isFullTank = it }, enabled = !state.isSaving)
         }
-        OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notes") }, singleLine = true, enabled = !state.isSaving)
+        OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text(stringResource(R.string.notes_label)) }, singleLine = true, enabled = !state.isSaving)
         state.error?.let { error ->
             Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive })
-            TextButton(onClick = onClearError) { Text("Dismiss error") }
+            TextButton(onClick = onClearError) { Text(stringResource(R.string.dismiss_error)) }
         }
         state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
         Button(
             onClick = { onSave(FuelDraft(date, odometer, volume, volumeUnit, cost, currency, fuelType, station, isFullTank, notes), false) },
             enabled = !state.isSaving && date.length == 10 && odometer.isNotBlank() && volume.isNotBlank()
         ) {
-            if (state.isSaving) CircularProgressIndicator(Modifier.semantics { contentDescription = "Saving fuel fill-up" }) else Text("Save fill-up")
+            if (state.isSaving) CircularProgressIndicator(Modifier.semantics { contentDescription = savingFuelFillUpCd }) else Text(stringResource(R.string.save_fill_up))
         }
         HorizontalDivider()
-        Text("Fuel economy", style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.fuel_economy), style = MaterialTheme.typography.titleLarge)
         Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             EconomyUnit.entries.forEach { unit ->
                 FilterChip(
@@ -241,21 +255,21 @@ private fun FuelScreen(
                 )
             }
         }
-        if (economy == null) Text("Add at least two full-tank fill-ups with increasing odometer readings to calculate an interval.")
-        else Text("Latest complete interval: ${DecimalFormat("0.0").format(economy)} ${economyUnitLabel(economyUnit)}", style = MaterialTheme.typography.titleMedium)
+        if (economy == null) Text(stringResource(R.string.economy_needs_two_fill_ups))
+        else Text(stringResource(R.string.latest_complete_interval_format, DecimalFormat("0.0").format(economy), economyUnitLabel(economyUnit)), style = MaterialTheme.typography.titleMedium)
         HorizontalDivider()
-        Text("Fill-up history", style = MaterialTheme.typography.titleLarge)
-        if (state.fillUps.isEmpty()) Text("No fuel purchases recorded yet.")
+        Text(stringResource(R.string.fill_up_history), style = MaterialTheme.typography.titleLarge)
+        if (state.fillUps.isEmpty()) Text(stringResource(R.string.no_fuel_purchases))
         state.fillUps.forEach { fillUp -> FuelRecordRow(fillUp) }
     }
 
     state.review?.let { review ->
         AlertDialog(
             onDismissRequest = onDismissReview,
-            title = { Text("Confirm fuel odometer") },
-            text = { Text("${review.reason}\n\nSave this fill-up anyway? Confirm only if the reading/date is correct (for example, an odometer reset).") },
-            confirmButton = { TextButton(onClick = onConfirmReview) { Text("Save fill-up") } },
-            dismissButton = { TextButton(onClick = onDismissReview) { Text("Review entry") } }
+            title = { Text(stringResource(R.string.confirm_fuel_odometer_title)) },
+            text = { Text(stringResource(R.string.confirm_fuel_message, review.reason)) },
+            confirmButton = { TextButton(onClick = onConfirmReview) { Text(stringResource(R.string.save_fill_up)) } },
+            dismissButton = { TextButton(onClick = onDismissReview) { Text(stringResource(R.string.review_entry)) } }
         )
     }
 }
@@ -264,24 +278,36 @@ private fun FuelScreen(
 private fun FuelRecordRow(fillUp: FuelFillUpEntity) {
     val date = Instant.ofEpochMilli(fillUp.filledAtUtc).atZone(ZoneId.systemDefault()).toLocalDate()
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text("$date · ${fillUp.odometerValue} ${if (fillUp.odometerUnit == "MILE") "mi" else "km"}", style = MaterialTheme.typography.titleSmall)
-        Text("${DecimalFormat("0.000").format(fillUp.volumeMillilitres / 1000.0)} L · ${if (fillUp.isFullTank) "Full tank" else "Partial tank"} · ${fillUp.fuelType ?: "Fuel"}")
-        fillUp.totalCostMinor?.let { Text("${fillUp.currencyCode} ${BigDecimal(it).divide(BigDecimal(100)).setScale(2)}") }
+        Text(stringResource(R.string.dot_three_part_format, date.toString(), fillUp.odometerValue.toString(), stringResource(if (fillUp.odometerUnit == "MILE") R.string.unit_mi else R.string.unit_km)), style = MaterialTheme.typography.titleSmall)
+        Text(
+            stringResource(
+                R.string.fuel_row_volume_format,
+                DecimalFormat("0.000").format(fillUp.volumeMillilitres / 1000.0),
+                stringResource(R.string.unit_litre),
+                stringResource(if (fillUp.isFullTank) R.string.full_tank else R.string.partial_tank),
+                fillUp.fuelType ?: stringResource(R.string.fuel_default)
+            )
+        )
+        fillUp.totalCostMinor?.let {
+            Text(stringResource(R.string.two_part_format, fillUp.currencyCode, BigDecimal(it).divide(BigDecimal(100)).setScale(2).toPlainString()))
+        }
         fillUp.stationName?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         fillUp.notes?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         HorizontalDivider()
     }
 }
 
+@Composable
 private fun volumeUnitLabel(value: String) = when (value) {
-    "US_GAL" -> "US gal"
-    "IMP_GAL" -> "Imp gal"
-    else -> "L"
+    "US_GAL" -> stringResource(R.string.unit_us_gal)
+    "IMP_GAL" -> stringResource(R.string.unit_imp_gal)
+    else -> stringResource(R.string.unit_litre)
 }
 
+@Composable
 private fun economyUnitLabel(unit: EconomyUnit): String = when (unit) {
-    EconomyUnit.L_PER_100_KM -> "L/100km"
-    EconomyUnit.KM_PER_LITRE -> "km/L"
-    EconomyUnit.MPG_US -> "US mpg"
-    EconomyUnit.MPG_IMPERIAL -> "Imp mpg"
+    EconomyUnit.L_PER_100_KM -> stringResource(R.string.economy_l_per_100km)
+    EconomyUnit.KM_PER_LITRE -> stringResource(R.string.economy_km_per_l)
+    EconomyUnit.MPG_US -> stringResource(R.string.economy_us_mpg)
+    EconomyUnit.MPG_IMPERIAL -> stringResource(R.string.economy_imp_mpg)
 }

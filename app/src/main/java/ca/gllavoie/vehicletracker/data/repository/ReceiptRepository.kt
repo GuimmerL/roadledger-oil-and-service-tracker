@@ -61,7 +61,7 @@ class ReceiptRepository(
         val read = buffered.read(signature)
         buffered.reset()
         val actualMime = detectMime(signature.copyOf(maxOf(0, read)))
-        require(actualMime != null) { "Only PDF, JPEG and PNG receipts are supported." }
+        require(actualMime != null) { "Only PDF, JPEG, PNG, WebP, GIF, HEIC, HEIF or AVIF receipts are supported." }
         require(declaredMimeType.isNullOrBlank() || declaredMimeType == "application/octet-stream" || declaredMimeType == actualMime) {
             "Receipt file type does not match its content."
         }
@@ -155,7 +155,7 @@ class ReceiptRepository(
         val read = buffered.read(signature)
         buffered.reset()
         val actualMime = detectMime(signature.copyOf(maxOf(0, read)))
-        require(actualMime != null) { "Only PDF, JPEG and PNG documents are supported." }
+        require(actualMime != null) { "Only PDF, JPEG, PNG, WebP, GIF, HEIC, HEIF or AVIF documents are supported." }
         require(declaredMimeType.isNullOrBlank() || declaredMimeType == "application/octet-stream" || declaredMimeType == actualMime) {
             "Document file type does not match its content."
         }

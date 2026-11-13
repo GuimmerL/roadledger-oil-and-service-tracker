@@ -24,6 +24,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -32,6 +33,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import ca.gllavoie.vehicletracker.R
 import ca.gllavoie.vehicletracker.data.local.OdometerReadingEntity
 import ca.gllavoie.vehicletracker.data.repository.OdometerRepository
 import ca.gllavoie.vehicletracker.data.repository.VehicleRepository
@@ -72,6 +74,8 @@ private fun OdometerHistoryDialog(
     onClearError: () -> Unit
 ) {
     val vehicle = state.vehicle
+    val loadingOdometerHistoryCd = stringResource(R.string.loading_odometer_history)
+    val savingOdometerReadingCd = stringResource(R.string.saving_odometer_reading_cd)
     val today = rememberSaveable { LocalDate.now().toString() }
     var readingValue by rememberSaveable(vehicle?.id) { mutableStateOf("") }
     var readingDate by rememberSaveable(vehicle?.id) { mutableStateOf(today) }
@@ -93,7 +97,13 @@ private fun OdometerHistoryDialog(
     }
     AlertDialog(
         onDismissRequest = { if (!state.isSaving) onDismiss() },
-        title = { Text(vehicle?.let { "Update current mileage · ${it.make} ${it.model}" } ?: "Update current mileage") },
+        title = {
+            Text(
+                vehicle?.let {
+                    stringResource(R.string.update_current_mileage_vehicle_format, it.make, it.model)
+                } ?: stringResource(R.string.update_current_mileage)
+            )
+        },
         text = {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val availableHeight = if (maxHeight == Dp.Infinity) 400.dp else (maxHeight - 64.dp).coerceAtLeast(180.dp)
@@ -101,36 +111,38 @@ private fun OdometerHistoryDialog(
                     modifier = Modifier.fillMaxWidth().heightIn(max = availableHeight).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (state.isLoading || vehicle == null) {
-                        CircularProgressIndicator(Modifier.semantics { contentDescription = "Loading odometer history" })
+                    if (state.isLoading) {
+                        CircularProgressIndicator(Modifier.semantics { contentDescription = loadingOdometerHistoryCd })
+                    } else if (vehicle == null) {
+                        Text(stringResource(R.string.vehicle_no_longer_available))
                     } else {
-                        Text("New reading (${if (vehicle.odometerUnit == "MILE") "mi" else "km"})", style = MaterialTheme.typography.titleMedium)
-                        Text("Two or more increasing readings on different dates let the app estimate mileage usage and project the next service date.", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.new_reading_label, stringResource(if (vehicle.odometerUnit == "MILE") R.string.unit_mi else R.string.unit_km)), style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.odometer_hint), style = MaterialTheme.typography.bodySmall)
                         OutlinedTextField(
                             value = readingValue,
                             onValueChange = { readingValue = it.filter(Char::isDigit) },
-                            label = { Text("Odometer reading") },
+                            label = { Text(stringResource(R.string.odometer_reading_label)) },
                             singleLine = true,
                             enabled = !state.isSaving
                         )
                         OutlinedTextField(
                             value = readingDate,
                             onValueChange = { readingDate = it.take(10) },
-                            label = { Text("Date (YYYY-MM-DD)") },
+                            label = { Text(stringResource(R.string.date_ymd_label)) },
                             singleLine = true,
                             enabled = !state.isSaving
                         )
                         OutlinedTextField(
                             value = notes,
                             onValueChange = { notes = it },
-                            label = { Text("Notes (optional)") },
+                            label = { Text(stringResource(R.string.notes_optional)) },
                             singleLine = true,
                             enabled = !state.isSaving
                         )
                         state.error?.let { error ->
                             Column {
                                 Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive })
-                                TextButton(onClick = onClearError) { Text("Dismiss error") }
+                                TextButton(onClick = onClearError) { Text(stringResource(R.string.dismiss_error)) }
                             }
                         }
                         state.message?.let { message ->
@@ -141,14 +153,14 @@ private fun OdometerHistoryDialog(
                             enabled = !state.isSaving && readingValue.isNotBlank() && readingDate.length == 10
                         ) {
                             if (state.isSaving) {
-                                CircularProgressIndicator(Modifier.semantics { contentDescription = "Saving odometer reading" })
-                                Text("Saving…", modifier = Modifier.padding(start = 8.dp))
-                            } else Text("Add reading")
+                                CircularProgressIndicator(Modifier.semantics { contentDescription = savingOdometerReadingCd })
+                                Text(stringResource(R.string.saving_ellipsis), modifier = Modifier.padding(start = 8.dp))
+                            } else Text(stringResource(R.string.add_reading))
                         }
                         HorizontalDivider()
-                        Text("Recorded readings", style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.recorded_readings), style = MaterialTheme.typography.titleMedium)
                         if (state.readings.isEmpty()) {
-                            Text("No odometer readings recorded yet.", style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(R.string.no_odometer_readings), style = MaterialTheme.typography.bodyMedium)
                         } else {
                             state.readings.forEach { reading -> OdometerReadingRow(reading) }
                         }
@@ -167,16 +179,26 @@ private fun OdometerHistoryDialog(
                     }
                 },
                 enabled = !state.isSaving
-            ) { Text("Done") }
+            ) { Text(stringResource(R.string.done)) }
         }
     )
     state.reviewDraft?.let { review ->
         AlertDialog(
             onDismissRequest = { dismissAfterSave = false; onDismissReview() },
-            title = { Text("Confirm odometer reading") },
-            text = { Text("${review.reason}\n\nSave ${review.value} ${vehicle?.odometerUnit?.lowercase() ?: "units"} on ${review.date} anyway?") },
-            confirmButton = { TextButton(onClick = onConfirmReview) { Text("Save reading") } },
-            dismissButton = { TextButton(onClick = { dismissAfterSave = false; onDismissReview() }) { Text("Go back") } }
+            title = { Text(stringResource(R.string.confirm_odometer_reading_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.confirm_odometer_message,
+                        review.reason,
+                        review.value.toString(),
+                        vehicle?.odometerUnit?.lowercase() ?: stringResource(R.string.units),
+                        review.date.toString()
+                    )
+                )
+            },
+            confirmButton = { TextButton(onClick = onConfirmReview) { Text(stringResource(R.string.save_reading)) } },
+            dismissButton = { TextButton(onClick = { dismissAfterSave = false; onDismissReview() }) { Text(stringResource(R.string.go_back)) } }
         )
     }
 }
@@ -186,7 +208,7 @@ private fun OdometerReadingRow(reading: OdometerReadingEntity) {
     val date = Instant.ofEpochMilli(reading.recordedAtUtc).atZone(ZoneId.systemDefault()).toLocalDate()
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("${reading.value} ${if (reading.unit == "MILE") "mi" else "km"}", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.two_part_format, reading.value.toString(), stringResource(if (reading.unit == "MILE") R.string.unit_mi else R.string.unit_km)), style = MaterialTheme.typography.bodyLarge)
             Text(DateTimeFormatter.ISO_LOCAL_DATE.format(date), style = MaterialTheme.typography.bodyMedium)
         }
         if (!reading.notes.isNullOrBlank()) Text(reading.notes, style = MaterialTheme.typography.bodySmall)

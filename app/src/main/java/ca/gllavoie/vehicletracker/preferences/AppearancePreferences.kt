@@ -1,25 +1,27 @@
 package ca.gllavoie.vehicletracker.preferences
 
 import android.content.Context
+import androidx.annotation.StringRes
+import ca.gllavoie.vehicletracker.R
 
-enum class ThemeMode(val label: String, val description: String) {
-    SYSTEM("Follow phone", "Use the phone's light or dark setting."),
-    LIGHT("Light", "Always use the light appearance."),
-    DARK("Dark", "Always use the dark appearance.");
+enum class ThemeMode(@StringRes val labelRes: Int, @StringRes val descriptionRes: Int) {
+    SYSTEM(R.string.theme_mode_system, R.string.theme_mode_system_description),
+    LIGHT(R.string.theme_mode_light, R.string.theme_mode_light_description),
+    DARK(R.string.theme_mode_dark, R.string.theme_mode_dark_description);
 
     companion object {
         fun fromStoredValue(value: String?): ThemeMode = entries.firstOrNull { it.name == value } ?: SYSTEM
     }
 }
 
-enum class ButtonColorTheme(val label: String) {
-    SYSTEM("Phone colors"),
-    BLUE("Blue"),
-    TEAL("Teal"),
-    VIOLET("Violet"),
-    GREEN("Green"),
-    AMBER("Amber"),
-    ROSE("Rose");
+enum class ButtonColorTheme(@StringRes val labelRes: Int) {
+    SYSTEM(R.string.button_color_system),
+    BLUE(R.string.button_color_blue),
+    TEAL(R.string.button_color_teal),
+    VIOLET(R.string.button_color_violet),
+    GREEN(R.string.button_color_green),
+    AMBER(R.string.button_color_amber),
+    ROSE(R.string.button_color_rose);
 
     companion object {
         fun fromStoredValue(value: String?): ButtonColorTheme = entries.firstOrNull { it.name == value } ?: SYSTEM

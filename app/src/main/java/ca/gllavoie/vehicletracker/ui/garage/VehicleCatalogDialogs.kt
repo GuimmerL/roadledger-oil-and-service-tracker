@@ -28,6 +28,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -35,6 +36,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import ca.gllavoie.vehicletracker.R
 import ca.gllavoie.vehicletracker.data.local.SpecificationSourceEntity
 import ca.gllavoie.vehicletracker.data.local.VehicleSpecificationEntity
 import ca.gllavoie.vehicletracker.data.repository.VehicleCatalogSeeder
@@ -55,6 +57,8 @@ fun VehicleCatalogPickerDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val unableToLoadCatalog = stringResource(R.string.unable_to_load_catalog)
+    val loadingVehicleCatalogCd = stringResource(R.string.loading_vehicle_catalog)
     var query by rememberSaveable { mutableStateOf("") }
     var editingEntry by remember { mutableStateOf<VehicleSpecificationEntity?>(null) }
     var loading by remember { mutableStateOf(isLoading || entries.isEmpty()) }
@@ -65,37 +69,41 @@ fun VehicleCatalogPickerDialog(
             try {
                 VehicleCatalogSeeder(context.applicationContext, repository).seedIfMissing()
             } catch (failure: Exception) {
-                loadError = failure.message ?: "Unable to load vehicle catalog."
+                loadError = failure.message ?: unableToLoadCatalog
             } finally {
                 loading = false
             }
         } else loading = false
     }
     LaunchedEffect(entries.isEmpty()) { if (entries.isNotEmpty()) loading = false }
-    val filtered = remember(entries, query) {
+    val searchableText = remember(entries) {
+        entries.map { entry ->
+            listOf(entry.make, entry.model, entry.engine.orEmpty(), entry.trim.orEmpty(), entry.serviceNotes.orEmpty())
+                .joinToString(" ")
+                .lowercase()
+        }
+    }
+    val filtered = remember(entries, query, searchableText) {
         val needle = query.trim().lowercase()
         if (needle.isEmpty()) entries
-        else entries.filter { entry ->
-            listOf(entry.make, entry.model, entry.engine.orEmpty(), entry.trim.orEmpty(), entry.serviceNotes.orEmpty())
-                .any { it.lowercase().contains(needle) }
-        }
+        else entries.filterIndexed { index, _ -> searchableText[index].contains(needle) }
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Modify vehicle catalog") },
+        title = { Text(stringResource(R.string.modify_vehicle_catalog_title)) },
         text = {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val availableHeight = if (maxHeight == Dp.Infinity) 520.dp else (maxHeight - 70.dp).coerceAtLeast(200.dp)
                 Column(Modifier.fillMaxWidth().heightIn(max = availableHeight), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = query, onValueChange = { query = it }, label = { Text("Search make, model, year range, or engine") }, singleLine = true)
+                    OutlinedTextField(value = query, onValueChange = { query = it }, label = { Text(stringResource(R.string.catalog_search_label)) }, singleLine = true)
                     loadError?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive }) }
                     if (loading) {
-                        CircularProgressIndicator(Modifier.semantics { contentDescription = "Loading vehicle catalog" })
+                        CircularProgressIndicator(Modifier.semantics { contentDescription = loadingVehicleCatalogCd })
                     } else if (filtered.isEmpty()) {
-                        Text("No matching catalog entry. Close this screen and use Other in the vehicle dropdowns to enter it manually.")
+                        Text(stringResource(R.string.no_matching_catalog_entry))
                     } else {
-                        Text("Select a car using the ordered dropdowns on the vehicle form. This screen only edits catalog entries.", style = MaterialTheme.typography.bodySmall)
-                        Text("${filtered.size} configurations · AI rows remain unverified; official interval checks are labeled", style = MaterialTheme.typography.labelMedium)
+                        Text(stringResource(R.string.catalog_picker_hint), style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.catalog_config_count_format, filtered.size), style = MaterialTheme.typography.labelMedium)
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             items(filtered, key = VehicleSpecificationEntity::id) { entry ->
                                 CatalogRow(
@@ -108,7 +116,7 @@ fun VehicleCatalogPickerDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) } }
     )
     editingEntry?.let { entry ->
         VehicleCatalogEditorDialog(
@@ -127,38 +135,35 @@ private fun CatalogRow(
 ) {
     val context = LocalContext.current
     val measurementSystem = remember { MeasurementSystemPreferences.get(context) }
-    val intervalUnit = if (measurementSystem.distanceUnit == "MILE") "mi" else "km"
-    val yearRange = rawField(entry.serviceNotes, "Years") ?: entry.modelYear?.toString() ?: "Year not specified"
+    val intervalUnit = stringResource(if (measurementSystem.distanceUnit == "MILE") R.string.unit_mi else R.string.unit_km)
+    val yearRange = rawField(entry.serviceNotes, "Years") ?: entry.modelYear?.toString() ?: stringResource(R.string.year_not_specified)
     val market = rawField(entry.serviceNotes, "Market / Region")
     val rawOil = rawField(entry.serviceNotes, "Raw oil recommendation")
-    val normalInterval = buildList {
-        entry.distanceInterval?.let { distance ->
-            convertDistanceInterval(distance, entry.distanceUnit, measurementSystem)?.let {
-                add("${NumberFormat.getIntegerInstance().format(it)} $intervalUnit")
-            }
-        }
-        entry.timeIntervalMonths?.let { add("$it months") }
-    }.joinToString(" · ").ifBlank { rawField(entry.serviceNotes, "Raw normal-service interval") ?: "Not specified" }
-    val severeInterval = buildList {
-        entry.severeDistanceInterval?.let { distance ->
-            convertDistanceInterval(distance, entry.distanceUnit, measurementSystem)?.let {
-                add("${NumberFormat.getIntegerInstance().format(it)} $intervalUnit")
-            }
-        }
-        entry.severeTimeIntervalMonths?.let { add("$it months") }
-    }.joinToString(" · ").ifBlank { rawField(entry.serviceNotes, "Raw severe-service interval") ?: "Not specified" }
+    val normalDistance = entry.distanceInterval?.let { distance ->
+        convertDistanceInterval(distance, entry.distanceUnit, measurementSystem)
+    }?.let { stringResource(R.string.two_part_format, NumberFormat.getIntegerInstance().format(it), intervalUnit) }
+    val normalMonths = entry.timeIntervalMonths?.let { stringResource(R.string.months_format, it) }
+    val normalInterval = listOfNotNull(normalDistance, normalMonths)
+        .joinToString(" · ").ifBlank { rawField(entry.serviceNotes, "Raw normal-service interval") ?: stringResource(R.string.not_specified) }
+    val severeDistance = entry.severeDistanceInterval?.let { distance ->
+        convertDistanceInterval(distance, entry.distanceUnit, measurementSystem)
+    }?.let { stringResource(R.string.two_part_format, NumberFormat.getIntegerInstance().format(it), intervalUnit) }
+    val severeMonths = entry.severeTimeIntervalMonths?.let { stringResource(R.string.months_format, it) }
+    val severeInterval = listOfNotNull(severeDistance, severeMonths)
+        .joinToString(" · ").ifBlank { rawField(entry.serviceNotes, "Raw severe-service interval") ?: stringResource(R.string.not_specified) }
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text("$yearRange · ${entry.make} ${entry.model}", style = MaterialTheme.typography.titleSmall)
+        Text(stringResource(R.string.dot_three_part_format, yearRange, entry.make, entry.model), style = MaterialTheme.typography.titleSmall)
         entry.engine?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-        market?.let { Text("Market: $it", style = MaterialTheme.typography.bodySmall) }
-        Text("Normal interval: $normalInterval", style = MaterialTheme.typography.bodySmall)
-        Text("Severe / heavy-use interval: $severeInterval", style = MaterialTheme.typography.bodySmall)
-        rawOil?.let { Text("Catalog oil text: $it", style = MaterialTheme.typography.bodySmall) }
+        market?.let { Text(stringResource(R.string.market_format, it), style = MaterialTheme.typography.bodySmall) }
+        Text(stringResource(R.string.normal_interval_format, normalInterval), style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.severe_interval_format, severeInterval), style = MaterialTheme.typography.bodySmall)
+        rawOil?.let { Text(stringResource(R.string.catalog_oil_text_format, it), style = MaterialTheme.typography.bodySmall) }
+        val verifiedOn = entry.verifiedOn ?: stringResource(R.string.date_not_recorded)
         val status = when (entry.verificationStatus) {
-            "USER_VERIFIED" -> "User-marked verified · ${entry.verifiedOn ?: "date not recorded"}"
-            "OFFICIAL_INTERVAL_RESEARCHED" -> "OEM interval source researched · review and confirm before scheduling · ${entry.verifiedOn ?: "date not recorded"}"
-            "USER_ENTERED_UNVERIFIED" -> "User-edited · NOT VERIFIED"
-            else -> "Unverified catalog data"
+            "USER_VERIFIED" -> stringResource(R.string.user_marked_verified_format, verifiedOn)
+            "OFFICIAL_INTERVAL_RESEARCHED" -> stringResource(R.string.oem_interval_source_format, verifiedOn)
+            "USER_ENTERED_UNVERIFIED" -> stringResource(R.string.user_edited_unverified)
+            else -> stringResource(R.string.unverified_catalog_data)
         }
         val statusColor = when (entry.verificationStatus) {
             "USER_VERIFIED" -> MaterialTheme.colorScheme.primary
@@ -166,7 +171,7 @@ private fun CatalogRow(
             else -> MaterialTheme.colorScheme.error
         }
         Text(status, color = statusColor, style = MaterialTheme.typography.labelSmall)
-        TextButton(onClick = onEdit) { Text("Modify data") }
+        TextButton(onClick = onEdit) { Text(stringResource(R.string.modify_data)) }
         HorizontalDivider()
     }
 }
@@ -179,6 +184,13 @@ private fun VehicleCatalogEditorDialog(
     onSaved: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val unableToLoadSource = stringResource(R.string.unable_to_load_catalog_source)
+    val unableToSaveCatalogEntry = stringResource(R.string.unable_to_save_catalog_entry)
+    val savingCatalogEntryCd = stringResource(R.string.saving_catalog_entry_cd)
+    val userEnteredSource = stringResource(R.string.user_entered_source)
+    val sourceNoteUserVerified = stringResource(R.string.source_note_user_verified)
+    val sourceNoteOem = stringResource(R.string.source_note_oem)
+    val sourceNoteUnverified = stringResource(R.string.source_note_unverified)
     var make by rememberSaveable(entry.id) { mutableStateOf(entry.make) }
     var model by rememberSaveable(entry.id) { mutableStateOf(entry.model) }
     var modelYear by rememberSaveable(entry.id) { mutableStateOf(entry.modelYear?.toString().orEmpty()) }
@@ -204,61 +216,66 @@ private fun VehicleCatalogEditorDialog(
 
     LaunchedEffect(entry.id) {
         if (!loadedSource) {
-            val sources = repository.getSources(entry.id)
-            val source = sources.firstOrNull { it.verificationStatus == "USER_VERIFIED" }
-                ?: sources.firstOrNull { it.verificationStatus == "OFFICIAL_INTERVAL_RESEARCHED" }
-                ?: sources.firstOrNull { it.verificationStatus != "AI_GENERATED_UNVERIFIED" }
-            source?.let {
-                sourceName = it.sourceName
-                sourceUrl = it.sourceUrl.orEmpty()
-                verifiedOn = if (it.verificationStatus == "USER_VERIFIED") it.verifiedOn.orEmpty() else ""
-                markVerified = it.verificationStatus == "USER_VERIFIED"
+            try {
+                val sources = repository.getSources(entry.id)
+                val source = sources.firstOrNull { it.verificationStatus == "USER_VERIFIED" }
+                    ?: sources.firstOrNull { it.verificationStatus == "OFFICIAL_INTERVAL_RESEARCHED" }
+                    ?: sources.firstOrNull { it.verificationStatus != "AI_GENERATED_UNVERIFIED" }
+                source?.let {
+                    sourceName = it.sourceName
+                    sourceUrl = it.sourceUrl.orEmpty()
+                    verifiedOn = if (it.verificationStatus == "USER_VERIFIED") it.verifiedOn.orEmpty() else ""
+                    markVerified = it.verificationStatus == "USER_VERIFIED"
+                }
+            } catch (failure: Exception) {
+                error = failure.message ?: unableToLoadSource
+            } finally {
+                loadedSource = true
             }
-            loadedSource = true
         }
     }
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
-        title = { Text("Modify catalog configuration") },
+        title = { Text(stringResource(R.string.modify_catalog_configuration_title)) },
         text = {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val availableHeight = if (maxHeight == Dp.Infinity) 520.dp else (maxHeight - 70.dp).coerceAtLeast(200.dp)
                 Column(Modifier.fillMaxWidth().heightIn(max = availableHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Original source text is retained in the notes.", style = MaterialTheme.typography.bodySmall)
-                    OutlinedTextField(value = make, onValueChange = { make = it }, label = { Text("Make") }, singleLine = true, enabled = !busy)
-                    OutlinedTextField(value = model, onValueChange = { model = it }, label = { Text("Model") }, singleLine = true, enabled = !busy)
-                    OutlinedTextField(value = modelYear, onValueChange = { modelYear = it.filter(Char::isDigit).take(4) }, label = { Text("Exact model year (leave blank for a range)") }, singleLine = true, enabled = !busy)
-                    OutlinedTextField(value = engine, onValueChange = { engine = it }, label = { Text("Engine") }, singleLine = true, enabled = !busy)
-                    OutlinedTextField(value = trim, onValueChange = { trim = it }, label = { Text("Trim") }, singleLine = true, enabled = !busy)
-                    OutlinedTextField(value = viscosity, onValueChange = { viscosity = it }, label = { Text("Oil viscosity grade") }, singleLine = true, enabled = !busy)
-                    OutlinedTextField(value = approval, onValueChange = { approval = it }, label = { Text("Required manufacturer approval/specification") }, singleLine = true, enabled = !busy)
-                    OutlinedTextField(value = capacityLitres, onValueChange = { capacityLitres = it }, label = { Text("Capacity with filter (litres)") }, singleLine = true, enabled = !busy)
+                    Text(stringResource(R.string.original_source_retained), style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(value = make, onValueChange = { make = it }, label = { Text(stringResource(R.string.make_label)) }, singleLine = true, enabled = !busy)
+                    OutlinedTextField(value = model, onValueChange = { model = it }, label = { Text(stringResource(R.string.model_label)) }, singleLine = true, enabled = !busy)
+                    OutlinedTextField(value = modelYear, onValueChange = { modelYear = it.filter(Char::isDigit).take(4) }, label = { Text(stringResource(R.string.exact_model_year_label)) }, singleLine = true, enabled = !busy)
+                    OutlinedTextField(value = engine, onValueChange = { engine = it }, label = { Text(stringResource(R.string.engine_label)) }, singleLine = true, enabled = !busy)
+                    OutlinedTextField(value = trim, onValueChange = { trim = it }, label = { Text(stringResource(R.string.trim_label)) }, singleLine = true, enabled = !busy)
+                    OutlinedTextField(value = viscosity, onValueChange = { viscosity = it }, label = { Text(stringResource(R.string.oil_viscosity_grade_label)) }, singleLine = true, enabled = !busy)
+                    OutlinedTextField(value = approval, onValueChange = { approval = it }, label = { Text(stringResource(R.string.required_manufacturer_approval_label)) }, singleLine = true, enabled = !busy)
+                    OutlinedTextField(value = capacityLitres, onValueChange = { capacityLitres = it }, label = { Text(stringResource(R.string.capacity_with_filter_litres_label)) }, singleLine = true, enabled = !busy)
                     HorizontalDivider()
-                    Text("Oil change interval", style = MaterialTheme.typography.titleSmall)
-                    Text("Normal service", style = MaterialTheme.typography.labelMedium)
-                    OutlinedTextField(value = interval, onValueChange = { interval = it.filter(Char::isDigit) }, label = { Text("Distance interval") }, singleLine = true, enabled = !busy)
+                    Text(stringResource(R.string.oil_change_interval), style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.normal_service), style = MaterialTheme.typography.labelMedium)
+                    OutlinedTextField(value = interval, onValueChange = { interval = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.distance_interval_label)) }, singleLine = true, enabled = !busy)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        TextButton(onClick = { intervalUnit = "KM" }, enabled = !busy) { Text(if (intervalUnit == "KM") "✓ KM" else "KM") }
-                        TextButton(onClick = { intervalUnit = "MILE" }, enabled = !busy) { Text(if (intervalUnit == "MILE") "✓ Mile" else "Mile") }
+                        TextButton(onClick = { intervalUnit = "KM" }, enabled = !busy) { Text(stringResource(if (intervalUnit == "KM") R.string.unit_km_checked else R.string.unit_km_short)) }
+                        TextButton(onClick = { intervalUnit = "MILE" }, enabled = !busy) { Text(stringResource(if (intervalUnit == "MILE") R.string.unit_mile_checked else R.string.unit_mile_short)) }
                     }
-                    OutlinedTextField(value = months, onValueChange = { months = it.filter(Char::isDigit) }, label = { Text("Time interval (months)") }, singleLine = true, enabled = !busy)
-                    Text("Severe service", style = MaterialTheme.typography.labelMedium)
-                    OutlinedTextField(value = severeDistance, onValueChange = { severeDistance = it.filter(Char::isDigit) }, label = { Text("Distance interval") }, singleLine = true, enabled = !busy)
-                    OutlinedTextField(value = severeMonths, onValueChange = { severeMonths = it.filter(Char::isDigit) }, label = { Text("Time interval (months)") }, singleLine = true, enabled = !busy)
-                    OutlinedTextField(value = filterPart, onValueChange = { filterPart = it }, label = { Text("Oil filter part number") }, singleLine = true, enabled = !busy)
-                    OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Raw catalog and service notes") }, minLines = 3, enabled = !busy)
+                    OutlinedTextField(value = months, onValueChange = { months = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.time_interval_months_label)) }, singleLine = true, enabled = !busy)
+                    Text(stringResource(R.string.severe_service), style = MaterialTheme.typography.labelMedium)
+                    OutlinedTextField(value = severeDistance, onValueChange = { severeDistance = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.distance_interval_label)) }, singleLine = true, enabled = !busy)
+                    OutlinedTextField(value = severeMonths, onValueChange = { severeMonths = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.time_interval_months_label)) }, singleLine = true, enabled = !busy)
+                    OutlinedTextField(value = filterPart, onValueChange = { filterPart = it }, label = { Text(stringResource(R.string.oil_filter_part_number_label)) }, singleLine = true, enabled = !busy)
+                    OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text(stringResource(R.string.raw_catalog_notes_label)) }, minLines = 3, enabled = !busy)
                     HorizontalDivider()
                     if (entry.verificationStatus == "OFFICIAL_INTERVAL_RESEARCHED") {
-                        Text("An OEM source was researched for the interval only. Review the cited guide and check the box below yourself before this interval can affect scheduling; other fields may remain unverified. Editing the vehicle identity, oil grade, or interval resets this source-research status.", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.oem_source_researched_warning), style = MaterialTheme.typography.bodySmall)
                     }
                     Row {
                         Checkbox(checked = markVerified, onCheckedChange = { markVerified = it }, enabled = !busy)
-                        Text("I checked these values against official manufacturer documentation", modifier = Modifier.padding(top = 12.dp))
+                        Text(stringResource(R.string.checked_official_documentation), modifier = Modifier.padding(top = 12.dp))
                     }
-                    OutlinedTextField(value = sourceName, onValueChange = { sourceName = it }, label = { Text("Source name") }, singleLine = true, enabled = !busy)
-                    OutlinedTextField(value = sourceUrl, onValueChange = { sourceUrl = it }, label = { Text("Official source URL") }, singleLine = true, enabled = !busy)
-                    OutlinedTextField(value = verifiedOn, onValueChange = { verifiedOn = it.take(10) }, label = { Text("Date verified (YYYY-MM-DD)") }, singleLine = true, enabled = !busy)
+                    OutlinedTextField(value = sourceName, onValueChange = { sourceName = it }, label = { Text(stringResource(R.string.source_name_label)) }, singleLine = true, enabled = !busy)
+                    OutlinedTextField(value = sourceUrl, onValueChange = { sourceUrl = it }, label = { Text(stringResource(R.string.official_source_url_label)) }, singleLine = true, enabled = !busy)
+                    OutlinedTextField(value = verifiedOn, onValueChange = { verifiedOn = it.take(10) }, label = { Text(stringResource(R.string.date_verified_label)) }, singleLine = true, enabled = !busy)
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive }) }
                 }
             }
@@ -309,7 +326,7 @@ private fun VehicleCatalogEditorDialog(
                     SpecificationSourceEntity(
                         id = if (verificationStatus == "OFFICIAL_INTERVAL_RESEARCHED") "official-source-${entry.id}" else "user-source-${entry.id}",
                         specificationId = entry.id,
-                        sourceName = sourceName.trim().ifEmpty { "User-entered source" },
+                        sourceName = sourceName.trim().ifEmpty { userEnteredSource },
                         sourceUrl = sourceUrl.trim().ifEmpty { null },
                         verifiedOn = when (verificationStatus) {
                             "USER_VERIFIED" -> verifiedOn.trim()
@@ -318,9 +335,9 @@ private fun VehicleCatalogEditorDialog(
                         },
                         verificationStatus = spec.verificationStatus,
                         notes = when (verificationStatus) {
-                            "USER_VERIFIED" -> "User marked values verified against an official source."
-                            "OFFICIAL_INTERVAL_RESEARCHED" -> "OEM source researched for oil interval only; user confirmation is required before scheduling can use it."
-                            else -> "User-entered source note; values remain unverified."
+                            "USER_VERIFIED" -> sourceNoteUserVerified
+                            "OFFICIAL_INTERVAL_RESEARCHED" -> sourceNoteOem
+                            else -> sourceNoteUnverified
                         }
                     )
                 } else null
@@ -331,16 +348,16 @@ private fun VehicleCatalogEditorDialog(
                         repository.saveCatalogEntry(spec, source)
                         onSaved()
                     } catch (failure: Exception) {
-                        error = failure.message ?: "Unable to save catalog entry."
+                        error = failure.message ?: unableToSaveCatalogEntry
                     } finally {
                         busy = false
                     }
                 }
             }, enabled = !busy) {
-                if (busy) CircularProgressIndicator(Modifier.semantics { contentDescription = "Saving catalog entry" }) else Text("Save changes")
+                if (busy) CircularProgressIndicator(Modifier.semantics { contentDescription = savingCatalogEntryCd }) else Text(stringResource(R.string.save_changes))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.cancel)) } }
     )
 }
 

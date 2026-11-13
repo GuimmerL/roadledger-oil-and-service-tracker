@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+- Catalog data revision 2.1.0: correct 1,872 cells across 1,440 rows using only in-row evidence (month decimals 7.5 → 5 and 3.75 → 75, approval formatting, `API C-4`/`API CK-4`, induction/fuel labels). Merge 940 malformed engine-list fragments back into their full variants, remove 7 exact duplicate rows, and remove 14 Tesla electric drive-unit rows (gearbox fluid, not engine oil). Catalog is now 15,149 rows.
+- Catalog seeder: refresh untouched `AI_GENERATED_UNVERIFIED` rows on a seed-version change and remove rows that no longer exist in the bundled file (unless a vehicle references them). User-edited, verified, researched, and referenced legacy rows are preserved. Add a regression test for the re-seed path.
+- Platform: edge-to-edge with light/dark system-bar styling, `Theme.Material3.DayNight` window, predictive-back opt-in, `adjustResize` keyboard mode, and single-top notification deep links that open the due vehicle.
+- Navigation: replace the toolbar dropdown with a Material `NavigationBar` on compact screens and a `NavigationRail` on medium/expanded widths; Material icons replace text glyphs.
+- Accessibility: merge garage-card semantics, remove duplicate chip labels, add a monochrome notification icon, and give the oil reminder a tap action plus reminder category.
+- Performance: hoist Compose flows into `remember` so collection does not restart on recomposition, cache catalog option lists, and pre-normalize catalog search text.
+- Backup/restore: stream the archive to/from a temp file with `ZipFile` instead of materializing all attachment bytes in memory; cap entry count as well as total bytes.
+- UI polish: full-screen-width cap on expanded layouts, loading-vs-missing states in dialogs, saveable restore selection, and date fields replaced with Material date pickers.
+- Localization: move user-visible strings into `strings.xml` with placeholders.
+- Remove unreachable Dashboard screen/ViewModel/test and the unused `navigation-compose` dependency.
+- Add `scripts/audit_vehicle_catalog.py`, `scripts/fix_vehicle_catalog.py`, and `scripts/repair_engine_fragments.py` (all support `--dry-run`).
+- Verified offline `:app:testDebugUnitTest assembleDebug`: 145 tests passed (0 failures/errors/skips) across 24 suites. No emulator/device was available for UI testing.
+
 ## [0.5.3] - Release
 - Redraw vehicle-type icons with distinct silhouettes, including a flat-tail hatchback, longer wagon, taller SUV, and open-top convertible.
 - Add persistent garage sorting by name, newest/oldest model year, or recently added.

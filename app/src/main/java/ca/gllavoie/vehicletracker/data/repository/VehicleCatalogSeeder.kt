@@ -45,11 +45,11 @@ class VehicleCatalogSeeder(
                 sources += parseSource(row, specifications.last(), csvHeaders)
             }
             require(recordCount == EXPECTED_RECORD_COUNT + 1) {
-                "Production catalog record count is $recordCount; expected ${EXPECTED_RECORD_COUNT + 1} rows including its header."
+                "Production catalog record count is $recordCount; expected ${EXPECTED_RECORD_COUNT + 1} rows including its header for catalog version $CATALOG_VERSION. Update EXPECTED_RECORD_COUNT and CATALOG_VERSION if the bundled file changed."
             }
         }
-        require(specifications.size == EXPECTED_RECORD_COUNT) { "Production catalog import was incomplete." }
-        repository.seedCatalogIfMissing(specifications, sources)
+        require(specifications.size == EXPECTED_RECORD_COUNT) { "Production catalog import was incomplete for catalog version $CATALOG_VERSION." }
+        repository.seedCatalogIfMissing(specifications, sources, CATALOG_ID_PREFIX)
         repository.markCatalogVersionSeeded(CATALOG_VERSION)
         specifications.size
     }
@@ -215,10 +215,10 @@ class VehicleCatalogSeeder(
 
     companion object {
         const val ASSET_NAME = "vehicle_catalog_v2.0.0_production.csv"
-        const val CATALOG_VERSION = "2.0.0"
+        const val CATALOG_VERSION = "2.1.0"
         const val DATASET_MARKER = "vehicle_catalog_v2.0.0_production"
         const val CATALOG_ID_PREFIX = "production-v2.0.0-"
-        const val EXPECTED_RECORD_COUNT = 15_952
+        const val EXPECTED_RECORD_COUNT = 15_149
         const val AI_GENERATED_UNVERIFIED = "AI_GENERATED_UNVERIFIED"
         const val OFFICIAL_INTERVAL_RESEARCHED = "OFFICIAL_INTERVAL_RESEARCHED"
         private val OIL_TYPE_VALUES = setOf("FULL_SYNTHETIC", "CONVENTIONAL")
