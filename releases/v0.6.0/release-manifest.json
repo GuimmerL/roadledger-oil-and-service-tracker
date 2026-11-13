@@ -1,0 +1,18 @@
+{
+  "applicationId": "ca.gllavoie.vehicletracker",
+  "versionName": "0.6.0",
+  "versionCode": 9,
+  "buildType": "debug",
+  "signing": "debug key; not production-signed",
+  "createdUtc": "2026-11-13T19:24:19+00:00",
+  "artifacts": {
+    "RoadLedger_v0.6.0_debug.apk": {
+      "bytes": 12637020,
+      "sha256": "1c2289d9dfab641729d5b227d18be68998f856e5f85ee71f6dbc30190011ade3"
+    },
+    "RoadLedger_v0.6.0_Source_Code.zip": {
+      "bytes": 2473289,
+      "sha256": "c8cf92b3745ec9944fc0e954f480d75f1cbbfed8a1fb0c979d3630bf121bf41f"
+    }
+  }
+}

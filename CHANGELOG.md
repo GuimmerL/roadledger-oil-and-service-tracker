@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## [Unreleased]
+## [0.6.0] - 2026-11-13
 - Catalog data revision 2.1.0: correct 1,872 cells across 1,440 rows using only in-row evidence (month decimals 7.5 → 5 and 3.75 → 75, approval formatting, `API C-4`/`API CK-4`, induction/fuel labels). Merge 940 malformed engine-list fragments back into their full variants, remove 7 exact duplicate rows, and remove 14 Tesla electric drive-unit rows (gearbox fluid, not engine oil). Catalog is now 15,149 rows.
 - Catalog seeder: refresh untouched `AI_GENERATED_UNVERIFIED` rows on a seed-version change and remove rows that no longer exist in the bundled file (unless a vehicle references them). User-edited, verified, researched, and referenced legacy rows are preserved. Add a regression test for the re-seed path.
 - Platform: edge-to-edge with light/dark system-bar styling, `Theme.Material3.DayNight` window, predictive-back opt-in, `adjustResize` keyboard mode, and single-top notification deep links that open the due vehicle.

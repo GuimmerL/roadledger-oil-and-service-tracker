@@ -51,7 +51,7 @@ From the project directory, configure a JDK 17 and Android SDK for your machine 
 ./gradlew testDebugUnitTest assembleDebug
 ```
 
-Last verified: `./gradlew testDebugUnitTest assembleDebug` passed **145 JUnit tests** across 24 suites (0 failures/errors/skips). It produced `app/build/outputs/apk/debug/app-debug.apk` (12,637,020 bytes, debug-signed, version 0.5.3, versionCode 8). The APK package/version and launcher resources were inspected; no emulator/device was connected, so UI rendering, notification delivery, and TalkBack remain untested on-device.
+Last verified: `./gradlew testDebugUnitTest assembleDebug` passed **145 JUnit tests** across 24 suites (0 failures/errors/skips). It produced `app/build/outputs/apk/debug/app-debug.apk` (12,637,020 bytes, debug-signed, version 0.6.0, versionCode 9). The APK package/version and launcher resources were inspected; no emulator/device was connected, so UI rendering, notification delivery, and TalkBack remain untested on-device.
 
 ## Versioned release exports
 

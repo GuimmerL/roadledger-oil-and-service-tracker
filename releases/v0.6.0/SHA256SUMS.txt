@@ -1,0 +1,2 @@
+1c2289d9dfab641729d5b227d18be68998f856e5f85ee71f6dbc30190011ade3  RoadLedger_v0.6.0_debug.apk
+c8cf92b3745ec9944fc0e954f480d75f1cbbfed8a1fb0c979d3630bf121bf41f  RoadLedger_v0.6.0_Source_Code.zip

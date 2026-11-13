@@ -22,7 +22,7 @@
 - Debug APK is not a production-signed release.
 
 ## Verification gates
-- Latest full run: offline `:app:testDebugUnitTest assembleDebug` succeeded; 145 JUnit tests passed (0 failures/errors/skips) across 24 suites. Version 0.5.3 debug APK (12,637,020 bytes) contains the 15,149-row production catalog. No emulator/device UI or notification test was available.
+- Latest full run: offline `:app:testDebugUnitTest assembleDebug` succeeded; 145 JUnit tests passed (0 failures/errors/skips) across 24 suites. Version 0.6.0 debug APK (12,637,020 bytes) contains the 15,149-row production catalog. No emulator/device UI or notification test was available.
 - Test totals are parsed from `app/build/test-results/testDebugUnitTest/TEST-*.xml` after the build; rerun after source changes.
 - For any schema-version change, add and test a non-destructive Room migration and update backup compatibility handling.
 - The suite includes database persistence across reopen and full backup → clean restore → receipt checksum verification.
